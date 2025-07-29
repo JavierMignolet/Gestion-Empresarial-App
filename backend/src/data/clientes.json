@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1753814165834,
+    "nombre": "Juan Pérez",
+    "cuit_dni": "20123456789",
+    "direccion": "Av. Siempre Viva 123",
+    "telefono": "351-1234567",
+    "email": "juan@mail.com",
+    "condicion_iva": "Responsable Inscripto"
+  },
+  {
+    "id": 1753814186270,
+    "nombre": "Juan Pérez",
+    "cuit_dni": "20123456789",
+    "direccion": "Av. Siempre Viva 123",
+    "telefono": "351-1234567",
+    "email": "juan@mail.com",
+    "condicion_iva": "Responsable Inscripto"
+  }
+]
