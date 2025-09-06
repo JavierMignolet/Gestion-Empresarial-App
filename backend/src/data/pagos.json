@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1753970356665,
+    "concepto": "Sueldo Javier Junio",
+    "categoria": "sueldos",
+    "monto": 372000,
+    "fecha": "2025-07-31T13:59:16.665Z",
+    "usuario": "admin"
+  },
+  {
+    "id": 1753970423512,
+    "concepto": "Sueldo Javier Julio",
+    "categoria": "sueldos",
+    "monto": 258400,
+    "fecha": "2025-07-31T14:00:23.512Z",
+    "usuario": "admin"
+  },
+  {
+    "id": 1753970448562,
+    "concepto": "Sueldo Javier Agosto",
+    "categoria": "sueldos",
+    "monto": 516800,
+    "fecha": "2025-07-31T14:00:48.562Z",
+    "usuario": "admin"
+  }
+]

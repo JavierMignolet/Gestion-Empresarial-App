@@ -1,20 +1,56 @@
 [
   {
-    "id": 1753814165834,
-    "nombre": "Juan Pérez",
-    "cuit_dni": "20123456789",
-    "direccion": "Av. Siempre Viva 123",
-    "telefono": "351-1234567",
-    "email": "juan@mail.com",
+    "id": 1,
+    "nombre": "supermercado gloria",
+    "cuit_dni": "2000335544",
+    "direccion": "av kka564",
+    "telefono": "",
+    "email": "",
     "condicion_iva": "Responsable Inscripto"
   },
   {
-    "id": 1753814186270,
-    "nombre": "Juan Pérez",
-    "cuit_dni": "20123456789",
-    "direccion": "Av. Siempre Viva 123",
-    "telefono": "351-1234567",
-    "email": "juan@mail.com",
+    "id": 2,
+    "nombre": "Disco",
+    "cuit_dni": "30552224556",
+    "direccion": "av pedo 546",
+    "telefono": "",
+    "email": "",
+    "condicion_iva": "Responsable Inscripto"
+  },
+  {
+    "id": 3,
+    "nombre": "mariaxo max",
+    "cuit_dni": "52000022222",
+    "direccion": "velez 546",
+    "telefono": "",
+    "email": "",
+    "condicion_iva": "Responsable inscripto"
+  },
+  {
+    "id": 4,
+    "nombre": "Local",
+    "cuit_dni": "",
+    "direccion": "",
+    "telefono": "",
+    "email": "",
+    "condicion_iva": ""
+  },
+  {
+    "id": 5,
+    "nombre": "Buenos dias",
+    "cuit_dni": "5222545452",
+    "direccion": "cba",
+    "telefono": "",
+    "email": "",
+    "condicion_iva": "Responsable Inscripto"
+  },
+  {
+    "id": 6,
+    "nombre": "Keti",
+    "cuit_dni": "25222215555",
+    "direccion": "",
+    "telefono": "",
+    "email": "",
     "condicion_iva": "Responsable Inscripto"
   }
 ]

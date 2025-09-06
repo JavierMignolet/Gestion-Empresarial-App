@@ -1,0 +1,119 @@
+[
+  {
+    "id": 1756767774650,
+    "fecha": "2025-09-01T12:00:00.000Z",
+    "cliente_id": "2",
+    "producto_id": "1",
+    "cantidad": 250,
+    "precio_unitario": 3600,
+    "total": 900000
+  },
+  {
+    "id": 1756767796145,
+    "fecha": "2025-09-01T12:00:00.000Z",
+    "cliente_id": "3",
+    "producto_id": "1",
+    "cantidad": 300,
+    "precio_unitario": 3600,
+    "total": 1080000
+  },
+  {
+    "id": 1756767816024,
+    "fecha": "2025-09-01T12:00:00.000Z",
+    "cliente_id": "5",
+    "producto_id": "1",
+    "cantidad": 149,
+    "precio_unitario": 3600,
+    "total": 536400
+  },
+  {
+    "id": 1756767831953,
+    "fecha": "2025-09-01T12:00:00.000Z",
+    "cliente_id": "4",
+    "producto_id": "1",
+    "cantidad": 35,
+    "precio_unitario": 5500,
+    "total": 192500
+  },
+  {
+    "id": 1756767883324,
+    "fecha": "2025-08-20T12:00:00.000Z",
+    "cliente_id": "2",
+    "producto_id": "1",
+    "cantidad": 500,
+    "precio_unitario": 3600,
+    "total": 1800000
+  },
+  {
+    "id": 1756767909131,
+    "fecha": "2025-08-13T12:00:00.000Z",
+    "cliente_id": "1",
+    "producto_id": "1",
+    "cantidad": 200,
+    "precio_unitario": 3600,
+    "total": 720000
+  },
+  {
+    "id": 1756767927580,
+    "fecha": "2025-08-25T12:00:00.000Z",
+    "cliente_id": "4",
+    "producto_id": "1",
+    "cantidad": 45,
+    "precio_unitario": 5500,
+    "total": 247500
+  },
+  {
+    "id": 1756767946892,
+    "fecha": "2025-07-16T12:00:00.000Z",
+    "cliente_id": "1",
+    "producto_id": "1",
+    "cantidad": 125,
+    "precio_unitario": 3600,
+    "total": 450000
+  },
+  {
+    "id": 1756767968193,
+    "fecha": "2025-07-17T12:00:00.000Z",
+    "cliente_id": "2",
+    "producto_id": "1",
+    "cantidad": 225,
+    "precio_unitario": 3600,
+    "total": 810000
+  },
+  {
+    "id": 1756767985159,
+    "fecha": "2025-07-23T12:00:00.000Z",
+    "cliente_id": "4",
+    "producto_id": "1",
+    "cantidad": 65,
+    "precio_unitario": 5500,
+    "total": 357500
+  },
+  {
+    "id": 1756768070471,
+    "fecha": "2025-01-09T12:00:00.000Z",
+    "cliente_id": "2",
+    "producto_id": "1",
+    "cantidad": 550,
+    "precio_unitario": 3600,
+    "total": 1980000
+  },
+  {
+    "id": 1756768088962,
+    "fecha": "2025-01-31T12:00:00.000Z",
+    "cliente_id": "1",
+    "producto_id": "1",
+    "cantidad": 75,
+    "precio_unitario": 3600,
+    "total": 270000
+  },
+  {
+    "id": 1756768109996,
+    "fecha": "2025-01-28T12:00:00.000Z",
+    "cliente_id": "4",
+    "producto_id": "1",
+    "cantidad": 40,
+    "precio_unitario": 5500,
+    "total": 220000
+  }
+]

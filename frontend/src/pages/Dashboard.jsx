@@ -1,3 +1,4 @@
+// Dashboard.jsx
 function Dashboard() {
   return (
     <div>

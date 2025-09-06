@@ -1,3 +1,4 @@
+//Sidebar.jsx
 import { useAuth } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -33,8 +34,23 @@ function Sidebar() {
               </Link>
             </li>
             <li className="nav-item mb-2">
-              <Link className="nav-link text-white" to="/proveedores">
-                Proveedores
+              <Link className="nav-link text-white" to="/compras">
+                Compras
+              </Link>
+            </li>
+            <li className="nav-item mb-2">
+              <Link className="nav-link text-white" to="/ventas">
+                Ventas
+              </Link>
+            </li>
+            <li className="nav-item mb-2">
+              <Link className="nav-link text-white" to="/pedidos">
+                Pedidos
+              </Link>
+            </li>
+            <li className="nav-item mb-2">
+              <Link className="nav-link text-white" to="/insumos">
+                Insumos
               </Link>
             </li>
             <li className="nav-item mb-2">
@@ -52,19 +68,20 @@ function Sidebar() {
                 Producción
               </Link>
             </li>
+
             <li className="nav-item mb-2">
-              <Link className="nav-link text-white" to="/compras">
-                Compras
+              <Link className="nav-link text-white" to="/pagos">
+                Pagos
               </Link>
             </li>
             <li className="nav-item mb-2">
-              <Link className="nav-link text-white" to="/ventas">
-                Ventas
+              <Link className="nav-link text-white" to="/gastos">
+                Gastos
               </Link>
             </li>
             <li className="nav-item mb-2">
-              <Link className="nav-link text-white" to="/cafe">
-                Café / Local
+              <Link className="nav-link text-white" to="/capital">
+                Capital
               </Link>
             </li>
             <li className="nav-item mb-2">
@@ -72,6 +89,8 @@ function Sidebar() {
                 Reportes
               </Link>
             </li>
+
+            {/* 👇 NUEVO LINK: Configuración (solo admin) */}
             <li className="nav-item mb-2">
               <Link className="nav-link text-white" to="/configuracion">
                 Configuración

@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1756507555825,
+    "fecha": "2025-08-29",
+    "producto": "Tequeño",
+    "nombre": "Tequeño",
+    "cantidad": 200,
+    "lote": "1225",
+    "insumos": [
+      {
+        "insumo": "Harina",
+        "unidad": "kg",
+        "cantidad": 5
+      },
+      {
+        "insumo": "Queso",
+        "unidad": "kg",
+        "cantidad": 10
+      }
+    ],
+    "stock": 200
+  }
+]

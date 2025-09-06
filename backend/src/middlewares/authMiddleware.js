@@ -1,6 +1,6 @@
+// src/middlewares/authMiddleware.js
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-
 dotenv.config();
 
 export const verifyToken = (req, res, next) => {
@@ -13,7 +13,18 @@ export const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    // Chequeo extra: debe coincidir empresa en header (si viene)
+    const headerEmpresa = req.headers["x-company"];
+    if (
+      decoded?.empresa &&
+      headerEmpresa &&
+      decoded.empresa !== headerEmpresa
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Empresa inválida para este token" });
+    }
+    req.user = decoded; // { id, username, role, empresa }
     next();
   } catch (err) {
     return res.status(403).json({ message: "Token inválido" });

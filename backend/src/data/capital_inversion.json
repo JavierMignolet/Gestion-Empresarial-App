@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "fecha": "2025-09-01",
+    "descripcion": "Sobadora",
+    "tipo": "inversion",
+    "cantidad": 1,
+    "precio_unitario": 2000000,
+    "total": 2000000
+  }
+]

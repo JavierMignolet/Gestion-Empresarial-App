@@ -1,3 +1,4 @@
+//Productos.jsx
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
@@ -13,9 +14,9 @@ function Productos() {
     nombre: "",
     tipo: "",
     presentacion: "",
-    precio_costo: "",
-    precio_venta: "",
-    stock: 0,
+    precio_consumidor: "",
+    precio_minorista: "",
+    precio_mayorista: "",
   });
 
   const fetchProductos = async () => {
@@ -45,9 +46,9 @@ function Productos() {
       nombre: "",
       tipo: "",
       presentacion: "",
-      precio_costo: "",
-      precio_venta: "",
-      stock: 0,
+      precio_consumidor: "",
+      precio_minorista: "",
+      precio_mayorista: "",
     });
     setShowModal(true);
   };
@@ -112,26 +113,26 @@ function Productos() {
           <table className="table table-bordered table-hover">
             <thead className="table-dark">
               <tr>
-                <th>#</th>
+                <th>ID</th> {/* <- antes decia # */}
                 <th>Nombre</th>
                 <th>Tipo</th>
                 <th>Presentación</th>
-                <th>Precio costo</th>
-                <th>Precio venta</th>
-                <th>Stock</th>
+                <th>Precio Final</th>
+                <th>Precio Minorista</th>
+                <th>Precio Mayorista</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {productos.map((p, index) => (
+              {productos.map((p) => (
                 <tr key={p.id}>
-                  <td>{index + 1}</td>
+                  <td>{p.id}</td> {/* <- antes usabas index + 1 */}
                   <td>{p.nombre}</td>
                   <td>{p.tipo}</td>
                   <td>{p.presentacion}</td>
-                  <td>${p.precio_costo}</td>
-                  <td>${p.precio_venta}</td>
-                  <td>{p.stock}</td>
+                  <td>${p.precio_consumidor}</td>
+                  <td>${p.precio_minorista}</td>
+                  <td>${p.precio_mayorista}</td>
                   <td>
                     <button
                       className="btn btn-sm btn-warning me-2"
@@ -177,16 +178,16 @@ function Productos() {
                   "nombre",
                   "tipo",
                   "presentacion",
-                  "precio_costo",
-                  "precio_venta",
-                  "stock",
+                  "precio_consumidor",
+                  "precio_minorista",
+                  "precio_mayorista",
                 ].map((field) => (
                   <div className="mb-3" key={field}>
                     <label className="form-label">
                       {field.replace("_", " ").toUpperCase()}
                     </label>
                     <input
-                      type={field === "stock" ? "number" : "text"}
+                      type={field.includes("precio") ? "number" : "text"}
                       name={field}
                       className="form-control"
                       value={formData[field]}

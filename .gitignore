@@ -1,1 +1,50 @@
-node_modules
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependencias
+node_modules/
+
+# Builds / coverage
+dist/
+build/
+coverage/
+
+# Vite / cache
+.vite/
+frontend/.vite/
+
+# Envs (no subir credenciales)
+.env
+.env.*.local
+frontend/.env
+backend/.env
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Frontend específicas
+frontend/dist/
+frontend/node_modules/
+
+# Backend específicas
+backend/node_modules/
+
+# Datos locales multi-tenant (NO subir datos reales)
+backend/src/data/tenants/**/config/*.json
+backend/src/data/tenants/**/db/*.json
+backend/src/data/config/*.json
+backend/src/data/config/reset-tokens.json
+
+# Permití archivos de ejemplo/plantillas (sí se suben)
+!backend/src/data/**/**.example.json
+
+# Plataformas de deploy (si aplican)
+.vercel/
+.netlify/

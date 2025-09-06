@@ -1,3 +1,4 @@
+// Clientes.jsx
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
@@ -69,7 +70,9 @@ function Clientes() {
           }
         );
       } else {
-        await axios.post("http://localhost:4000/api/clientes", formData, {
+        // El backend ignora cualquier "id" que mandemos y asigna el siguiente (1..n)
+        const { id: _ignore, ...payload } = formData;
+        await axios.post("http://localhost:4000/api/clientes", payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
@@ -111,7 +114,7 @@ function Clientes() {
           <table className="table table-bordered table-hover">
             <thead className="table-dark">
               <tr>
-                <th>#</th>
+                <th>ID</th>
                 <th>Nombre</th>
                 <th>CUIT / DNI</th>
                 <th>Dirección</th>
@@ -122,9 +125,9 @@ function Clientes() {
               </tr>
             </thead>
             <tbody>
-              {clientes.map((cliente, index) => (
+              {clientes.map((cliente) => (
                 <tr key={cliente.id}>
-                  <td>{index + 1}</td>
+                  <td>{cliente.id}</td>
                   <td>{cliente.nombre}</td>
                   <td>{cliente.cuit_dni}</td>
                   <td>{cliente.direccion}</td>
@@ -190,7 +193,7 @@ function Clientes() {
                       value={formData[field]}
                       onChange={handleChange}
                       className="form-control"
-                      required
+                      required={field === "nombre"}
                     />
                   </div>
                 ))}

@@ -1,3 +1,4 @@
+//Navbar.jsx
 function Navbar() {
   return (
     <nav className="navbar navbar-light bg-light px-4">

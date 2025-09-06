@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1754305034193,
+    "fecha": "2025-08-04",
+    "tipo": "insumo",
+    "proveedor_id": "byc distribuidora",
+    "descripcion": "queso",
+    "unidad": "kg",
+    "cantidad": 100,
+    "precio_unitario": 6000,
+    "total": 600000
+  },
+  {
+    "id": 1754305110587,
+    "fecha": "2025-08-04",
+    "tipo": "insumo",
+    "proveedor_id": "byc distribuidora",
+    "descripcion": "Harina",
+    "unidad": "kg",
+    "cantidad": 100,
+    "precio_unitario": 1500,
+    "total": 150000
+  },
+  {
+    "id": 1754305152991,
+    "fecha": "2025-08-01",
+    "tipo": "insumo",
+    "proveedor_id": "byc distribuidora",
+    "descripcion": "queso",
+    "unidad": "kg",
+    "cantidad": 10,
+    "precio_unitario": 6000,
+    "total": 60000
+  },
+  {
+    "id": 1754306941290,
+    "fecha": "2025-08-01",
+    "tipo": "insumo",
+    "proveedor_id": "byc distribuidora",
+    "descripcion": "Harina",
+    "unidad": "kg",
+    "cantidad": 50,
+    "precio_unitario": 1500,
+    "total": 75000
+  },
+  {
+    "id": 1756148486853,
+    "fecha": "2025-08-01",
+    "tipo": "insumo",
+    "proveedor_id": "byc distribuidora",
+    "descripcion": "Harina",
+    "unidad": "kg",
+    "cantidad": 200,
+    "precio_unitario": 5500,
+    "total": 1100000
+  }
+]
