@@ -1,17 +1,19 @@
-//src/controllers/insumosController.js
+// src/controllers/insumoController.js
 import { readJSON } from "../utils/fileHandler.js";
 
-const COMPRAS_FILE = "./src/data/compras.json";
+const COMPRAS_FILE = "/compras.json";
 
 // ✅ Obtener resumen de insumos desde las compras
-export const getResumenInsumos = (req, res) => {
+export const getResumenInsumos = (_req, res) => {
   try {
     const compras = readJSON(COMPRAS_FILE);
+    const arr = Array.isArray(compras) ? compras : [];
 
-    const insumos = compras
-      .filter((c) => c.tipo === "insumo")
+    const insumos = arr
+      .filter((c) => (c.tipo || "").toLowerCase() === "insumo")
       .reduce((acc, compra) => {
-        const key = compra.descripcion.toLowerCase();
+        const key = String(compra.descripcion || "").toLowerCase();
+        if (!key) return acc;
         if (!acc[key]) {
           acc[key] = {
             insumo: compra.descripcion,
@@ -21,10 +23,11 @@ export const getResumenInsumos = (req, res) => {
             total_unidades: 0,
           };
         }
-        acc[key].cantidad_total += compra.cantidad;
-        acc[key].total_precio += compra.precio_unitario * compra.cantidad;
-        acc[key].total_unidades += compra.cantidad;
-
+        const q = Number(compra.cantidad) || 0;
+        const pu = Number(compra.precio_unitario) || 0;
+        acc[key].cantidad_total += q;
+        acc[key].total_precio += pu * q;
+        acc[key].total_unidades += q;
         return acc;
       }, {});
 
@@ -32,7 +35,10 @@ export const getResumenInsumos = (req, res) => {
       insumo: i.insumo,
       unidad: i.unidad,
       cantidad_total: i.cantidad_total,
-      precio_unitario: (i.total_precio / i.total_unidades).toFixed(2),
+      precio_unitario:
+        i.total_unidades > 0
+          ? (i.total_precio / i.total_unidades).toFixed(2)
+          : "0.00",
     }));
 
     res.json(resumen);

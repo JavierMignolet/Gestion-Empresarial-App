@@ -1,13 +1,18 @@
- //gastosController.js
+// src/controllers/gastosController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const GASTOS_FILE = "./src/data/gastos.json";
+const FILE = "/gastos.json";
+
+const safeRead = () => {
+  const d = readJSON(FILE);
+  return Array.isArray(d) ? d : [];
+};
+const save = (arr) => writeJSON(FILE, Array.isArray(arr) ? arr : []);
 
 // GET: listar todos
-export const getGastos = (req, res) => {
+export const getGastos = (_req, res) => {
   try {
-    const gastos = readJSON(GASTOS_FILE);
-    res.json(gastos);
+    res.json(safeRead());
   } catch (err) {
     console.error("❌ Error al leer los gastos:", err);
     res.status(500).json({ error: "Error al leer los gastos" });
@@ -17,7 +22,7 @@ export const getGastos = (req, res) => {
 // POST: crear
 export const registrarGasto = (req, res) => {
   try {
-    const { concepto, categoria, monto, fecha, usuario } = req.body;
+    const { concepto, categoria, monto, fecha, usuario } = req.body || {};
 
     if (!concepto || !categoria || monto === undefined || monto === null) {
       return res.status(400).json({ error: "Faltan datos del gasto" });
@@ -28,8 +33,7 @@ export const registrarGasto = (req, res) => {
       return res.status(400).json({ error: "Monto inválido" });
     }
 
-    const gastos = readJSON(GASTOS_FILE);
-
+    const gastos = safeRead();
     const nuevoGasto = {
       id: Date.now(),
       concepto,
@@ -40,7 +44,7 @@ export const registrarGasto = (req, res) => {
     };
 
     gastos.push(nuevoGasto);
-    writeJSON(GASTOS_FILE, gastos);
+    save(gastos);
 
     res.status(201).json({ message: "Gasto registrado", data: nuevoGasto });
   } catch (err) {
@@ -53,15 +57,14 @@ export const registrarGasto = (req, res) => {
 export const actualizarGasto = (req, res) => {
   try {
     const { id } = req.params;
-    const { concepto, categoria, monto, fecha, usuario } = req.body;
+    const { concepto, categoria, monto, fecha, usuario } = req.body || {};
 
-    const gastos = readJSON(GASTOS_FILE);
-    const idx = gastos.findIndex((g) => g.id == id);
+    const gastos = safeRead();
+    const idx = gastos.findIndex((g) => String(g.id) === String(id));
     if (idx === -1) {
       return res.status(404).json({ error: "Gasto no encontrado" });
     }
 
-    // Validaciones mínimas si vino "monto"
     let nMonto = gastos[idx].monto;
     if (monto !== undefined) {
       const parsed = parseFloat(monto);
@@ -80,7 +83,7 @@ export const actualizarGasto = (req, res) => {
       usuario: usuario ?? gastos[idx].usuario,
     };
 
-    writeJSON(GASTOS_FILE, gastos);
+    save(gastos);
     res.json({ message: "Gasto actualizado", data: gastos[idx] });
   } catch (err) {
     console.error("❌ Error al actualizar gasto:", err);
@@ -92,15 +95,15 @@ export const actualizarGasto = (req, res) => {
 export const eliminarGasto = (req, res) => {
   try {
     const { id } = req.params;
-    const gastos = readJSON(GASTOS_FILE);
+    const gastos = safeRead();
 
-    const existe = gastos.some((g) => g.id == id);
+    const existe = gastos.some((g) => String(g.id) === String(id));
     if (!existe) {
       return res.status(404).json({ error: "Gasto no encontrado" });
     }
 
-    const nuevos = gastos.filter((g) => g.id != id);
-    writeJSON(GASTOS_FILE, nuevos);
+    const nuevos = gastos.filter((g) => String(g.id) !== String(id));
+    save(nuevos);
 
     res.json({ message: "Gasto eliminado" });
   } catch (err) {

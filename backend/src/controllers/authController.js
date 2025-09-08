@@ -3,26 +3,20 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import crypto from "crypto";
-
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 import { empresaToSlug, getCurrentTenant } from "../utils/tenant.js";
 
 dotenv.config();
 
-function loadCuentas() {
-  // fileHandler aplica getTenantPath(), así que basta con rutas relativas a /src/data
-  return readJSON("config/cuentas.json") || [];
-}
-function saveCuentas(arr) {
-  return writeJSON("config/cuentas.json", arr || []);
-}
-function loadResetTokens() {
-  return readJSON("config/reset_tokens.json") || [];
-}
-function saveResetTokens(arr) {
-  return writeJSON("config/reset_tokens.json", arr || []);
-}
+const CUENTAS_FILE = "/config/cuentas.json";
+const RESETS_FILE = "/config/resetTokens.json";
 
+const readOr = (path, def) => {
+  const v = readJSON(path);
+  return typeof v === "undefined" || v === null ? def : v;
+};
+
+// =============== LOGIN ===============
 export const login = async (req, res) => {
   try {
     const { empresa, username, password } = req.body || {};
@@ -30,15 +24,14 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Faltan datos de acceso" });
     }
 
-    // Si por alguna razón el middleware no seteó el tenant, resolvemos aquí:
-    const slug = req.tenantSlug || getCurrentTenant() || empresaToSlug(empresa);
+    // Defensa por si no corrió el middleware (globalmente sí corre)
+    const slug = getCurrentTenant() || empresaToSlug(empresa);
     if (!slug) return res.status(400).json({ message: "Empresa inválida" });
 
-    const cuentas = loadCuentas();
-    const user = (cuentas || []).find(
-      (u) =>
-        String(u.username).trim().toLowerCase() ===
-        String(username).trim().toLowerCase()
+    // ✅ Cuentas del TENANT
+    const cuentas = readOr(CUENTAS_FILE, []);
+    const user = cuentas.find(
+      (u) => String(u.username).toLowerCase() === String(username).toLowerCase()
     );
     if (!user)
       return res.status(401).json({ message: "Credenciales inválidas" });
@@ -68,150 +61,132 @@ export const login = async (req, res) => {
   }
 };
 
+// =============== FORGOT PASSWORD ===============
+/**
+ * POST /api/auth/forgot
+ * Body: { empresa, username }
+ * Genera un token de reseteo y lo guarda en /config/resetTokens.json (tenant).
+ * Respuesta SIEMPRE genérica.
+ */
 export const forgotPassword = async (req, res) => {
   try {
-    const { empresa, username } = req.body || {};
-    // Empresa puede venir por body, header x-company o por JWT (tenantMiddleware global)
-    const slug =
-      req.tenantSlug ||
-      getCurrentTenant() ||
-      (empresa && empresaToSlug(empresa));
-    // Respondemos siempre genérico por seguridad
-    const generic = {
-      ok: true,
-      message:
-        "Si los datos existen, te enviaremos instrucciones para restablecer tu contraseña.",
-    };
+    const empresa = req.body?.empresa || req.headers["x-company"] || "";
+    const username = req.body?.username;
 
-    if (!slug || !username) return res.json(generic);
-
-    const cuentas = loadCuentas();
-    const user = (cuentas || []).find(
-      (u) =>
-        String(u.username).trim().toLowerCase() ===
-        String(username).trim().toLowerCase()
-    );
-
-    if (!user) {
-      // Usuario no existe → respuesta genérica
-      return res.json(generic);
+    if (!username) {
+      return res
+        .status(400)
+        .json({ message: "Debe indicar el usuario a recuperar." });
     }
 
-    // Elegimos canal “preferido” disponible (email > teléfono)
-    const via = user.email ? "email" : user.telefono ? "telefono" : null;
-    if (!via) {
-      // No hay canal de contacto guardado
-      return res.json(generic);
+    const slug = getCurrentTenant() || empresaToSlug(empresa);
+    // Aún si no hay slug devolvemos genérico para no filtrar info
+    const cuentas = readOr(CUENTAS_FILE, []);
+    const user = cuentas.find(
+      (u) => String(u.username).toLowerCase() === String(username).toLowerCase()
+    );
+
+    if (user) {
+      // Generar token y persistir (30 min)
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = Date.now() + 1000 * 60 * 30;
+
+      const resets = readOr(RESETS_FILE, []).filter(
+        (r) => Number(r.expiresAt) > Date.now()
+      );
+      resets.push({
+        token,
+        username: user.username,
+        createdAt: new Date().toISOString(),
+        expiresAt,
+      });
+      writeJSON(RESETS_FILE, resets);
+
+      // Para desarrollo: mostrás el token en consola (simula "enviado")
+      console.log(
+        `🔐 [${slug || "no-tenant"}] Reset token para ${
+          user.username
+        }: ${token}`
+      );
     }
 
-    // Generar token y guardarlo hasheado
-    const tokenPlain = crypto.randomBytes(24).toString("hex");
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(tokenPlain)
-      .digest("hex");
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutos
-
-    let tokens = loadResetTokens();
-    // Limpiar expirados
-    const now = Date.now();
-    tokens = tokens.filter((t) => new Date(t.expiresAt).getTime() > now);
-
-    tokens.push({
-      id: Date.now(),
-      username: String(user.username),
-      tokenHash,
-      expiresAt,
-      via, // informativo
-    });
-
-    saveResetTokens(tokens);
-
-    // Aquí podrías enviar email/SMS. Por ahora log para desarrollo:
-    console.log(
-      `🔐 Reset token (${via}) para usuario "${user.username}" (tenant ${slug}): ${tokenPlain} (expira ${expiresAt})`
-    );
-
-    // En desarrollo, devolvemos el token para facilitar pruebas
-    const isProd = (process.env.NODE_ENV || "").toLowerCase() === "production";
-    return res.json(
-      isProd ? generic : { ...generic, debugToken: tokenPlain, expiresAt }
-    );
-  } catch (err) {
-    console.error("❌ forgotPassword error:", err);
-    // Nunca revelamos detalles
+    // Respuesta genérica
     return res.json({
       ok: true,
       message:
-        "Si los datos existen, te enviaremos instrucciones para restablecer tu contraseña.",
+        "Si los datos son correctos, te enviaremos un enlace para restablecer.",
+    });
+  } catch (err) {
+    console.error("❌ forgotPassword:", err);
+    return res.json({
+      ok: true,
+      message:
+        "Si los datos son correctos, te enviaremos un enlace para restablecer.",
     });
   }
 };
 
+// =============== RESET PASSWORD ===============
+/**
+ * POST /api/auth/reset
+ * Body: { token, newPassword }
+ * Cambia la contraseña del usuario asociado al token válido (tenant actual).
+ */
 export const resetPassword = async (req, res) => {
   try {
-    const { empresa, username, token, newPassword } = req.body || {};
-
-    const slug =
-      req.tenantSlug ||
-      getCurrentTenant() ||
-      (empresa && empresaToSlug(empresa));
-    if (!slug || !username || !token || !newPassword) {
-      return res.status(400).json({ message: "Datos incompletos" });
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Faltan token o nueva contraseña." });
     }
     if (String(newPassword).trim().length < 6) {
       return res
         .status(400)
-        .json({ message: "La nueva contraseña es muy corta" });
+        .json({ message: "La contraseña debe tener al menos 6 caracteres." });
     }
 
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(String(token))
-      .digest("hex");
-
-    let tokens = loadResetTokens();
-    const now = Date.now();
-    // Buscar token válido para ese usuario
-    const idx = tokens.findIndex(
-      (t) =>
-        String(t.username).trim().toLowerCase() ===
-          String(username).trim().toLowerCase() &&
-        t.tokenHash === tokenHash &&
-        new Date(t.expiresAt).getTime() > now
+    const resets = readOr(RESETS_FILE, []);
+    const idx = resets.findIndex(
+      (r) => r.token === token && Number(r.expiresAt) > Date.now()
     );
     if (idx === -1) {
-      return res.status(400).json({ message: "Token inválido o expirado" });
+      return res.status(400).json({ message: "Token inválido o expirado." });
     }
 
-    // Actualizar password
-    const cuentas = loadCuentas();
+    const username = resets[idx].username;
+    const cuentas = readOr(CUENTAS_FILE, []);
     const uidx = cuentas.findIndex(
-      (u) =>
-        String(u.username).trim().toLowerCase() ===
-        String(username).trim().toLowerCase()
+      (u) => String(u.username).toLowerCase() === String(username).toLowerCase()
     );
     if (uidx === -1) {
-      // Si el usuario desapareció, invalidamos token y respondemos genérico
-      tokens.splice(idx, 1);
-      saveResetTokens(tokens);
-      return res.status(400).json({ message: "Token inválido o expirado" });
+      // Limpio token usado/roto igualmente
+      const left = resets.filter((r) => r.token !== token);
+      writeJSON(RESETS_FILE, left);
+      return res.status(400).json({ message: "Token inválido o expirado." });
     }
 
     const hashed = await bcrypt.hash(String(newPassword), 10);
     cuentas[uidx].password = hashed;
     cuentas[uidx].updatedAt = new Date().toISOString();
-    saveCuentas(cuentas);
+    writeJSON(CUENTAS_FILE, cuentas);
 
-    // Invalidar token usado
-    tokens.splice(idx, 1);
-    saveResetTokens(tokens);
+    // Remover token (y opcionalmente todos los tokens del usuario)
+    const remaining = resets.filter(
+      (r) =>
+        !(
+          r.token === token ||
+          r.username?.toLowerCase() === username.toLowerCase()
+        )
+    );
+    writeJSON(RESETS_FILE, remaining);
 
-    return res.json({ ok: true, message: "Contraseña actualizada" });
+    return res.json({
+      ok: true,
+      message: "Contraseña actualizada. Ya podés iniciar sesión.",
+    });
   } catch (err) {
-    console.error("❌ resetPassword error:", err);
-    return res
-      .status(500)
-      .json({ message: "No se pudo restablecer la contraseña" });
+    console.error("❌ resetPassword:", err);
+    return res.status(500).json({ message: "No se pudo restablecer." });
   }
 };

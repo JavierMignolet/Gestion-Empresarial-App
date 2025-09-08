@@ -1,6 +1,5 @@
-//Compras.jsx
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Compras() {
@@ -28,9 +27,7 @@ function Compras() {
 
   const fetchCompras = async () => {
     try {
-      const res = await axios.get("http://localhost:4000/api/compras", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axiosAuth.get("/api/compras");
       setCompras(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Error al obtener compras:", err);
@@ -38,8 +35,9 @@ function Compras() {
   };
 
   useEffect(() => {
-    fetchCompras();
-  }, []);
+    if (token) fetchCompras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -63,14 +61,10 @@ function Compras() {
       }
 
       if (editId) {
-        await axios.put(`http://localhost:4000/api/compras/${editId}`, data, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axiosAuth.put(`/api/compras/${editId}`, data);
         setMensaje("✅ Compra editada con éxito");
       } else {
-        await axios.post("http://localhost:4000/api/compras", data, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axiosAuth.post("/api/compras", data);
         setMensaje("✅ Compra guardada con éxito");
       }
 
@@ -95,9 +89,7 @@ function Compras() {
   const handleDelete = async (id) => {
     if (window.confirm("¿Eliminar compra?")) {
       try {
-        await axios.delete(`http://localhost:4000/api/compras/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axiosAuth.delete(`/api/compras/${id}`);
         fetchCompras();
       } catch (error) {
         console.error("Error al eliminar compra:", error);

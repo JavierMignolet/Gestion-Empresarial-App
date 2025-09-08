@@ -1,10 +1,10 @@
-// Clientes.jsx
+// src/pages/Clientes.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Clientes() {
-  const { token } = useAuth();
+  const { token, empresa, logout } = useAuth();
   const [clientes, setClientes] = useState([]);
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -21,18 +21,33 @@ function Clientes() {
 
   const fetchClientes = async () => {
     try {
-      const res = await axios.get("http://localhost:4000/api/clientes", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setClientes(res.data);
+      const res = await axiosAuth.get("/api/clientes");
+      setClientes(Array.isArray(res.data) ? res.data : []);
+      setError("");
     } catch (err) {
-      setError("No se pudieron cargar los clientes");
+      console.error("GET /api/clientes", err);
+      const status = err?.response?.status;
+      const msg =
+        err?.response?.data?.message ||
+        (status === 401
+          ? "Sesión inválida. Volvé a iniciar sesión."
+          : status === 403
+          ? "Acceso denegado. Verificá que la empresa del token coincida."
+          : "No se pudieron cargar los clientes.");
+      setError(msg);
+      setClientes([]);
+      // si el token no sirve, limpiar sesión ayuda a evitar loops
+      if (status === 401 || status === 403) {
+        // opcional: desloguear automáticamente
+        // logout();
+      }
     }
   };
 
   useEffect(() => {
-    fetchClientes();
-  }, [token]);
+    if (token && empresa) fetchClientes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, empresa]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -62,37 +77,40 @@ function Clientes() {
     e.preventDefault();
     try {
       if (editMode) {
-        await axios.put(
-          `http://localhost:4000/api/clientes/${formData.id}`,
-          formData,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        await axiosAuth.put(`/api/clientes/${formData.id}`, formData);
       } else {
-        // El backend ignora cualquier "id" que mandemos y asigna el siguiente (1..n)
         const { id: _ignore, ...payload } = formData;
-        await axios.post("http://localhost:4000/api/clientes", payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axiosAuth.post("/api/clientes", payload);
       }
       setShowModal(false);
       fetchClientes();
+      setError("");
     } catch (err) {
-      setError("Error al guardar el cliente");
+      console.error("SAVE cliente", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 403
+            ? "Acceso denegado (solo admin / empresa inválida)."
+            : "Error al guardar el cliente.")
+      );
     }
   };
 
   const eliminarCliente = async (id) => {
-    if (window.confirm("¿Seguro que querés eliminar este cliente?")) {
-      try {
-        await axios.delete(`http://localhost:4000/api/clientes/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        fetchClientes();
-      } catch (err) {
-        setError("Error al eliminar el cliente");
-      }
+    if (!window.confirm("¿Seguro que querés eliminar este cliente?")) return;
+    try {
+      await axiosAuth.delete(`/api/clientes/${id}`);
+      fetchClientes();
+    } catch (err) {
+      console.error("DELETE cliente", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 403
+            ? "Acceso denegado (solo admin / empresa inválida)."
+            : "Error al eliminar el cliente.")
+      );
     }
   };
 
@@ -107,7 +125,7 @@ function Clientes() {
 
       {error && <div className="alert alert-danger">{error}</div>}
 
-      {clientes.length === 0 ? (
+      {!clientes || clientes.length === 0 ? (
         <p>No hay clientes cargados aún.</p>
       ) : (
         <div className="table-responsive">
@@ -125,25 +143,25 @@ function Clientes() {
               </tr>
             </thead>
             <tbody>
-              {clientes.map((cliente) => (
-                <tr key={cliente.id}>
-                  <td>{cliente.id}</td>
-                  <td>{cliente.nombre}</td>
-                  <td>{cliente.cuit_dni}</td>
-                  <td>{cliente.direccion}</td>
-                  <td>{cliente.telefono}</td>
-                  <td>{cliente.email}</td>
-                  <td>{cliente.condicion_iva}</td>
+              {clientes.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.id}</td>
+                  <td>{c.nombre}</td>
+                  <td>{c.cuit_dni}</td>
+                  <td>{c.direccion}</td>
+                  <td>{c.telefono}</td>
+                  <td>{c.email}</td>
+                  <td>{c.condicion_iva}</td>
                   <td>
                     <button
                       className="btn btn-sm btn-warning me-2"
-                      onClick={() => openEditar(cliente)}
+                      onClick={() => openEditar(c)}
                     >
                       Editar
                     </button>
                     <button
                       className="btn btn-sm btn-danger"
-                      onClick={() => eliminarCliente(cliente.id)}
+                      onClick={() => eliminarCliente(c.id)}
                     >
                       Eliminar
                     </button>
@@ -172,7 +190,7 @@ function Clientes() {
                   type="button"
                   className="btn-close"
                   onClick={() => setShowModal(false)}
-                ></button>
+                />
               </div>
               <div className="modal-body">
                 {[

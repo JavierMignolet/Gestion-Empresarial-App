@@ -1,13 +1,21 @@
-//src/controllers/comprasController.js
+// src/controllers/comprasController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const comprasFile = "./src/data/compras.json";
+const FILE = "/compras.json";
+
+const safeRead = () => {
+  const d = readJSON(FILE);
+  return Array.isArray(d) ? d : [];
+};
+const save = (arr) => writeJSON(FILE, Array.isArray(arr) ? arr : []);
+
+const nextId = (arr) =>
+  arr.length ? Math.max(...arr.map((x) => +x.id || 0)) + 1 : 1;
 
 // ✅ Obtener todas las compras
-export const getCompras = (req, res) => {
+export const getCompras = (_req, res) => {
   try {
-    const compras = readJSON(comprasFile);
-    res.json(compras);
+    res.json(safeRead());
   } catch (error) {
     res.status(500).json({ message: "Error al leer las compras" });
   }
@@ -24,7 +32,7 @@ export const addCompra = (req, res) => {
       unidad,
       cantidad,
       precio_unitario,
-    } = req.body;
+    } = req.body || {};
 
     if (
       !fecha ||
@@ -49,11 +57,11 @@ export const addCompra = (req, res) => {
       return res.status(400).json({ message: "Tipo inválido" });
     }
 
-    const compras = readJSON(comprasFile);
+    const compras = safeRead();
     const total = parsedCantidad * parsedPrecio;
 
     const nuevaCompra = {
-      id: Date.now(),
+      id: nextId(compras),
       fecha,
       tipo,
       proveedor_id,
@@ -62,10 +70,12 @@ export const addCompra = (req, res) => {
       cantidad: parsedCantidad,
       precio_unitario: parsedPrecio,
       total,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     compras.push(nuevaCompra);
-    writeJSON(comprasFile, compras);
+    save(compras);
 
     res.status(201).json(nuevaCompra);
   } catch (error) {
@@ -78,42 +88,47 @@ export const addCompra = (req, res) => {
 export const updateCompra = (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      fecha,
-      tipo,
-      proveedor_id,
-      descripcion,
-      unidad,
-      cantidad,
-      precio_unitario,
-    } = req.body;
+    const body = req.body || {};
 
-    const compras = readJSON(comprasFile);
-    const index = compras.findIndex((c) => c.id == id);
+    const compras = safeRead();
+    const idx = compras.findIndex((c) => String(c.id) === String(id));
 
-    if (index === -1) {
+    if (idx === -1) {
       return res.status(404).json({ message: "Compra no encontrada" });
     }
 
-    const parsedCantidad = parseFloat(cantidad);
-    const parsedPrecio = parseFloat(precio_unitario);
+    const prev = compras[idx];
+    const parsedCantidad =
+      body.cantidad !== undefined ? parseFloat(body.cantidad) : prev.cantidad;
+    const parsedPrecio =
+      body.precio_unitario !== undefined
+        ? parseFloat(body.precio_unitario)
+        : prev.precio_unitario;
 
-    const total = parsedCantidad * parsedPrecio;
+    if (isNaN(parsedCantidad) || isNaN(parsedPrecio)) {
+      return res.status(400).json({ message: "Cantidad o precio inválido" });
+    }
 
-    compras[index] = {
-      ...compras[index],
-      fecha,
-      tipo,
-      proveedor_id,
-      descripcion,
-      unidad,
+    const total =
+      body.total !== undefined
+        ? parseFloat(body.total)
+        : parsedCantidad * parsedPrecio;
+
+    compras[idx] = {
+      ...prev,
+      fecha: body.fecha ?? prev.fecha,
+      tipo: body.tipo ?? prev.tipo,
+      proveedor_id: body.proveedor_id ?? prev.proveedor_id,
+      descripcion: body.descripcion ?? prev.descripcion,
+      unidad: body.unidad ?? prev.unidad,
       cantidad: parsedCantidad,
       precio_unitario: parsedPrecio,
-      total,
+      total: isNaN(total) ? prev.total : total,
+      updatedAt: new Date().toISOString(),
     };
 
-    writeJSON(comprasFile, compras);
-    res.json(compras[index]);
+    save(compras);
+    res.json(compras[idx]);
   } catch (error) {
     console.error("❌ Error en updateCompra:", error);
     res.status(500).json({ message: "Error al editar compra" });
@@ -124,15 +139,15 @@ export const updateCompra = (req, res) => {
 export const deleteCompra = (req, res) => {
   try {
     const { id } = req.params;
-    let compras = readJSON(comprasFile);
+    const compras = safeRead();
 
-    const existe = compras.find((c) => c.id == id);
+    const existe = compras.some((c) => String(c.id) === String(id));
     if (!existe) {
       return res.status(404).json({ message: "Compra no encontrada" });
     }
 
-    compras = compras.filter((c) => c.id != id);
-    writeJSON(comprasFile, compras);
+    const nuevo = compras.filter((c) => String(c.id) !== String(id));
+    save(nuevo);
     res.json({ message: "Compra eliminada correctamente" });
   } catch (error) {
     console.error("❌ Error en deleteCompra:", error);

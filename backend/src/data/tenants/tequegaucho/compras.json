@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "id": 1,
+    "fecha": "2025-09-08",
+    "tipo": "insumo",
+    "proveedor_id": "byc distribuidora",
+    "descripcion": "Harina",
+    "unidad": "kg",
+    "cantidad": 2,
+    "precio_unitario": 4,
+    "total": 8,
+    "createdAt": "2025-09-08T16:40:01.140Z",
+    "updatedAt": "2025-09-08T16:40:01.147Z"
+  }
+]

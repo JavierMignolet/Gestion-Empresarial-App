@@ -1,16 +1,15 @@
-//reportesController.js
-import fs from "fs";
-import path from "path";
+// src/controllers/reportesController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
 /* === Archivos fuente === */
-const VENTAS_FILE = "./src/data/ventas.json";
-const COMPRAS_FILE = "./src/data/compras.json";
-const PRODUCCIONES_FILE = "./src/data/producciones.json";
-const PEDIDOS_FILE = "./src/data/pedidos.json";
-const OBJETIVOS_FILE = "./src/data/objetivos_ventas.json"; // { objetivo_mensual_unidades, objetivo_semestral_unidades, objetivo_anual_unidades }
-const FINANZAS_FILE = "./src/data/finanzas.json"; // opcional
-const VENTAS_MENSUALES_FILE = "./src/data/ventas_mensuales.json"; // [{year, month, unidades}]
+const VENTAS_FILE = "/ventas.json";
+const COMPRAS_FILE = "/compras.json";
+const PRODUCCIONES_FILE = "/producciones.json";
+const PEDIDOS_FILE = "/pedidos.json";
+const OBJETIVOS_FILE = "/objetivos_ventas.json"; // { objetivo_mensual_unidades, objetivo_semestral_unidades, objetivo_anual_unidades }
+const FINANZAS_FILE = "/finanzas.json"; // opcional (si lo usás luego)
+const VENTAS_MENSUALES_FILE = "/ventas_mensuales.json"; // [{year, month, unidades}]
+const GASTOS_FILE = "/gastos.json";
 
 /* === Helpers === */
 const toDate = (s) => (s ? new Date(s) : null);
@@ -64,17 +63,13 @@ function aggregateMonthlyFromVentas(ventas) {
     const [y, m] = key.split("-").map((n) => Number(n));
     arr.push({ year: y, month: m, unidades });
   }
-  arr.sort((a, b) =>
-    a.year !== b.year ? a.year - b.year : a.month - b.month
-  );
+  arr.sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
   return arr;
 }
 
 function ensureVentasMensualesPersistidas(ventas) {
-  // Recalcula completo desde ventas.json y lo guarda en ./src/data/ventas_mensuales.json (idempotente)
+  // Recalcula completo desde ventas.json y lo guarda en /ventas_mensuales.json
   const mensual = aggregateMonthlyFromVentas(ventas);
-  const dir = path.dirname(VENTAS_MENSUALES_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   writeJSON(VENTAS_MENSUALES_FILE, mensual);
   return mensual;
 }
@@ -311,7 +306,7 @@ export const getReportes = (req, res) => {
     const compras = safeRead(COMPRAS_FILE);
     const produccionesAll = safeRead(PRODUCCIONES_FILE);
     const pedidosAll = safeRead(PEDIDOS_FILE);
-    const gastosAll = safeRead("./src/data/gastos.json");
+    const gastosAll = safeRead(GASTOS_FILE);
 
     /* --- Persistimos/actualizamos historial mensual (AUTO) --- */
     const ventasMensuales = ensureVentasMensualesPersistidas(ventas); // [{year, month, unidades}]
@@ -330,7 +325,9 @@ export const getReportes = (req, res) => {
     const gastosRango = gastosAll.filter((g) => inRange(g.fecha, from, to));
 
     /* --- Productivos --- */
-    const resumenCompras = resumenInsumosDesdeCompras(compras);
+    const resumenCompras = resumenInsumosDesdeCompras(
+      comprasRango.length ? comprasRango : compras
+    );
     const consumoQ = consumoPromedioQuincenal(produccionesAll, from, to);
     const saldos = saldoInsumos(
       resumenCompras,
@@ -370,7 +367,10 @@ export const getReportes = (req, res) => {
       }
     });
 
-    const stockActual = stockProduccionFIFO(produccionesAll, ventas);
+    const stockActual = stockProduccionFIFO(
+      produccionesAll,
+      ventasRango.length ? ventasRango : ventas
+    );
 
     const stockSeguridad = consumoQ
       .map((c) => {
@@ -407,20 +407,21 @@ export const getReportes = (req, res) => {
           (precioInsumo[r.insumo.toLowerCase()] =
             Number(r.precio_unitario_promedio) || 0)
       );
-      const costos = (produccionesRango.length ? produccionesRango : produccionesAll).map(
-        (p) => {
-          const costo = (p.insumos || []).reduce((acc, i) => {
-            const pu = precioInsumo[(i.insumo || "").toLowerCase()] || 0;
-            return acc + (Number(i.cantidad) || 0) * pu;
-          }, 0);
-          const cantidad = Number(p.cantidad) || 0;
-          return {
-            costo_total: costo,
-            cantidad,
-            costo_unitario: cantidad > 0 ? costo / cantidad : 0,
-          };
-        }
-      );
+      const baseProds = produccionesRango.length
+        ? produccionesRango
+        : produccionesAll;
+      const costos = baseProds.map((p) => {
+        const costo = (p.insumos || []).reduce((acc, i) => {
+          const pu = precioInsumo[(i.insumo || "").toLowerCase()] || 0;
+          return acc + (Number(i.cantidad) || 0) * pu;
+        }, 0);
+        const cantidad = Number(p.cantidad) || 0;
+        return {
+          costo_total: costo,
+          cantidad,
+          costo_unitario: cantidad > 0 ? costo / cantidad : 0,
+        };
+      });
       const costoVariableTotal = sum(costos.map((c) => c.costo_total));
       const unidadesProducidas = sum(costos.map((c) => c.cantidad));
       const costoVariableUnitario =
@@ -458,7 +459,7 @@ export const getReportes = (req, res) => {
           semestral: vr.semestral,
           anual: vr.anual,
         },
-        // Comparativo mensual directo (para mostrar visible)
+        // Comparativo mensual visible
         comparativo_mensual: {
           real: vr.mensual,
           objetivo: objetivos.objetivo_mensual_unidades || 0,
@@ -477,7 +478,7 @@ export const getReportes = (req, res) => {
         cobertura_costos_fijos_pct: coberturaCFPct,
       },
       financieros: {
-        // (dejamos como en tu versión previa)
+        // Placeholders (si después usás FINANZAS_FILE)
         liquidez_corriente: null,
         capital_trabajo: null,
         endeudamiento_total: null,

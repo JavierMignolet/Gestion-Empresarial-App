@@ -1,15 +1,18 @@
 // src/controllers/productoController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const ruta = "./src/data/productos.json";
+const FILE = "/productos.json";
 
-const leer = () => readJSON(ruta) || [];
-const guardar = (data) => writeJSON(ruta, data || []);
+const leer = () => {
+  const d = readJSON(FILE);
+  return Array.isArray(d) ? d : [];
+};
+const guardar = (data) => writeJSON(FILE, Array.isArray(data) ? data : []);
 
 // GET
-export const getProductos = (req, res) => {
+export const getProductos = (_req, res) => {
   try {
-    const productos = (leer() || []).sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+    const productos = leer().sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
     res.json(productos);
   } catch (error) {
     console.error("Error al leer productos:", error);
@@ -27,7 +30,7 @@ export const crearProducto = (req, res) => {
       precio_consumidor,
       precio_minorista,
       precio_mayorista,
-    } = req.body;
+    } = req.body || {};
 
     if (!nombre || !tipo || !presentacion) {
       return res
@@ -67,7 +70,7 @@ export const crearProducto = (req, res) => {
 // PUT
 export const actualizarProducto = (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id, 10);
     const {
       nombre,
       tipo,
@@ -75,7 +78,7 @@ export const actualizarProducto = (req, res) => {
       precio_consumidor,
       precio_minorista,
       precio_mayorista,
-    } = req.body;
+    } = req.body || {};
 
     const productos = leer();
     const index = productos.findIndex((p) => Number(p.id) === id);
@@ -112,7 +115,7 @@ export const actualizarProducto = (req, res) => {
 // DELETE
 export const eliminarProducto = (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id, 10);
     const productos = leer();
     const nuevos = productos.filter((p) => Number(p.id) !== id);
     guardar(nuevos.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)));

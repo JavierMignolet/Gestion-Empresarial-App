@@ -1,44 +1,54 @@
-// Login.jsx
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 
 function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({ username: "", password: "" });
+  const [formData, setFormData] = useState({
+    empresa: "", // ⬅️ agrega empresa
+    username: "",
+    password: "",
+  });
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
     try {
-      const res = await axios.post(
-        "http://localhost:4000/api/auth/login",
-        formData
-      );
-      const { token, username, role } = res.data;
-      login({ token, username, role });
+      // usa el login del AuthContext (que guarda session y slug)
+      await login({
+        empresa: formData.empresa,
+        username: formData.username,
+        password: formData.password,
+      });
       navigate("/dashboard");
     } catch (err) {
-      setError(err.response?.data?.message || "Error al iniciar sesión");
+      setError(err?.response?.data?.message || "Error al iniciar sesión");
     }
   };
 
   return (
-    <div
-      className="container"
-      style={{ maxWidth: "400px", marginTop: "100px" }}
-    >
+    <div className="container" style={{ maxWidth: 400, marginTop: 100 }}>
       <h3 className="mb-4 text-center">Iniciar sesión</h3>
       <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <label className="form-label">Empresa</label>
+          <input
+            type="text"
+            name="empresa"
+            className="form-control"
+            value={formData.empresa}
+            onChange={handleChange}
+            placeholder="ej: teque-gaucho"
+            required
+          />
+        </div>
         <div className="mb-3">
           <label className="form-label">Usuario</label>
           <input
@@ -50,7 +60,6 @@ function Login() {
             required
           />
         </div>
-
         <div className="mb-3">
           <label className="form-label">Contraseña</label>
           <input
@@ -62,9 +71,7 @@ function Login() {
             required
           />
         </div>
-
         {error && <div className="alert alert-danger">{error}</div>}
-
         <button type="submit" className="btn btn-primary w-100">
           Ingresar
         </button>

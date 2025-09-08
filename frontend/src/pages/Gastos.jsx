@@ -1,11 +1,9 @@
-// Gastos.jsx
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Gastos() {
   const { token } = useAuth();
-  const headers = { Authorization: `Bearer ${token}` };
 
   const [gastos, setGastos] = useState([]);
   const [form, setForm] = useState({
@@ -13,7 +11,7 @@ function Gastos() {
     categoria: "",
     monto: "",
     fecha: "",
-    usuario: "admin", // por defecto
+    usuario: "admin",
   });
 
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -22,9 +20,7 @@ function Gastos() {
 
   const fetchGastos = async () => {
     try {
-      const res = await axios.get("http://localhost:4000/api/gastos", {
-        headers,
-      });
+      const res = await axiosAuth.get("/api/gastos");
       setGastos(res.data || []);
     } catch (err) {
       console.error("Error al obtener gastos", err);
@@ -32,9 +28,9 @@ function Gastos() {
   };
 
   useEffect(() => {
-    fetchGastos();
+    if (token) fetchGastos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const resetForm = () => {
     setForm({
@@ -49,7 +45,6 @@ function Gastos() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Si es monto, opcional: evitar negativos
     if (name === "monto" && Number(value) < 0) return;
     setForm({ ...form, [name]: value });
   };
@@ -64,14 +59,10 @@ function Gastos() {
 
     try {
       if (editId) {
-        await axios.put(`http://localhost:4000/api/gastos/${editId}`, payload, {
-          headers,
-        });
+        await axiosAuth.put(`/api/gastos/${editId}`, payload);
         setMensajeExito("✅ Gasto actualizado con éxito");
       } else {
-        await axios.post("http://localhost:4000/api/gastos", payload, {
-          headers,
-        });
+        await axiosAuth.post("/api/gastos", payload);
         setMensajeExito("✅ Gasto registrado con éxito");
       }
 
@@ -100,7 +91,7 @@ function Gastos() {
   const handleDelete = async (id) => {
     if (!window.confirm("¿Eliminar este gasto?")) return;
     try {
-      await axios.delete(`http://localhost:4000/api/gastos/${id}`, { headers });
+      await axiosAuth.delete(`/api/gastos/${id}`);
       fetchGastos();
     } catch (err) {
       console.error("Error al eliminar gasto", err);
@@ -111,7 +102,6 @@ function Gastos() {
     <div>
       <h2 className="mb-4">Gastos</h2>
 
-      {/* Botón para mostrar/ocultar formulario */}
       {!mostrarFormulario && (
         <button
           className="btn btn-primary mb-3"
@@ -124,12 +114,10 @@ function Gastos() {
         </button>
       )}
 
-      {/* Mensaje de éxito */}
       {mensajeExito && (
         <div className="alert alert-success">{mensajeExito}</div>
       )}
 
-      {/* Formulario */}
       {mostrarFormulario && (
         <div className="card p-3 mb-4">
           <form onSubmit={handleSubmit}>
@@ -189,7 +177,6 @@ function Gastos() {
               />
             </div>
 
-            {/* Campo oculto usuario */}
             <input type="hidden" name="usuario" value="admin" />
 
             <div className="d-flex gap-2">
@@ -211,7 +198,6 @@ function Gastos() {
         </div>
       )}
 
-      {/* Tabla */}
       <h5>Gastos registrados</h5>
       <div className="table-responsive">
         <table className="table table-striped table-bordered">

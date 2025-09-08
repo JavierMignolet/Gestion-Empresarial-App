@@ -1,59 +1,90 @@
-// src/controllers/clienteControlller.js
+// src/controllers/clienteController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const rutaClientes = "./src/data/clientes.json";
+const FILE = "/clientes.json";
 
-const leerClientes = () => readJSON(rutaClientes) || [];
-const guardarClientes = (data) => writeJSON(rutaClientes, data || []);
-
-const calcularSiguienteId = (clientes) => {
-  const ids = clientes
-    .map((c) => Number(c.id))
-    .filter((n) => Number.isFinite(n) && n >= 1);
-  const maxId = ids.length ? Math.max(...ids) : 0;
-  return maxId + 1;
+const safeRead = () => {
+  const d = readJSON(FILE);
+  return Array.isArray(d) ? d : [];
 };
 
-// GET
-export const getClientes = (req, res) => {
-  const clientes = leerClientes();
-  res.json(clientes);
+const save = (arr) => writeJSON(FILE, Array.isArray(arr) ? arr : []);
+
+const nextId = (arr) =>
+  arr.length ? Math.max(...arr.map((x) => +x.id || 0)) + 1 : 1;
+
+// ====== HANDLERS ======
+export const getClientes = (_req, res) => {
+  try {
+    res.json(safeRead());
+  } catch (err) {
+    console.error("❌ getClientes:", err);
+    res.status(500).json({ message: "No se pudieron leer los clientes" });
+  }
 };
 
-// POST
 export const crearCliente = (req, res) => {
-  const clientes = leerClientes();
-  const { id: _ignorarId, ...rest } = req.body;
+  try {
+    const clientes = safeRead();
+    const { id: _ignorarId, ...rest } = req.body || {};
 
-  const nuevoCliente = { id: calcularSiguienteId(clientes), ...rest };
-  clientes.push(nuevoCliente);
-  guardarClientes(clientes);
-  res.status(201).json(nuevoCliente);
+    const nuevo = {
+      id: nextId(clientes),
+      nombre: rest.nombre || "",
+      cuit_dni: rest.cuit_dni || "",
+      direccion: rest.direccion || "",
+      telefono: rest.telefono || "",
+      email: rest.email || "",
+      condicion_iva: rest.condicion_iva || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    clientes.push(nuevo);
+    save(clientes);
+    res.status(201).json(nuevo);
+  } catch (err) {
+    console.error("❌ crearCliente:", err);
+    res.status(500).json({ message: "No se pudo crear el cliente" });
+  }
 };
 
-// PUT
 export const actualizarCliente = (req, res) => {
-  const clientes = leerClientes();
-  const id = parseInt(req.params.id, 10);
-  const index = clientes.findIndex((c) => Number(c.id) === id);
-  if (index === -1)
-    return res.status(404).json({ message: "Cliente no encontrado" });
+  try {
+    const clientes = safeRead();
+    const id = Number(req.params.id);
+    const idx = clientes.findIndex((c) => Number(c.id) === id);
+    if (idx === -1) {
+      return res.status(404).json({ message: "Cliente no encontrado" });
+    }
 
-  const { id: _ignorarId, ...rest } = req.body;
-  clientes[index] = { ...clientes[index], ...rest };
-  guardarClientes(clientes);
-  res.json(clientes[index]);
+    const { id: _ignorarId, ...rest } = req.body || {};
+    clientes[idx] = {
+      ...clientes[idx],
+      ...rest,
+      updatedAt: new Date().toISOString(),
+    };
+
+    save(clientes);
+    res.json(clientes[idx]);
+  } catch (err) {
+    console.error("❌ actualizarCliente:", err);
+    res.status(500).json({ message: "No se pudo actualizar el cliente" });
+  }
 };
 
-// DELETE
 export const eliminarCliente = (req, res) => {
-  const clientes = leerClientes();
-  const id = parseInt(req.params.id, 10);
-  const existe = clientes.some((c) => Number(c.id) === id);
-  if (!existe)
-    return res.status(404).json({ message: "Cliente no encontrado" });
-
-  const nuevos = clientes.filter((c) => Number(c.id) !== id);
-  guardarClientes(nuevos);
-  res.json({ message: "Cliente eliminado" });
+  try {
+    const clientes = safeRead();
+    const id = Number(req.params.id);
+    if (!clientes.some((c) => Number(c.id) === id)) {
+      return res.status(404).json({ message: "Cliente no encontrado" });
+    }
+    const nuevos = clientes.filter((c) => Number(c.id) !== id);
+    save(nuevos);
+    res.json({ ok: true, message: "Cliente eliminado" });
+  } catch (err) {
+    console.error("❌ eliminarCliente:", err);
+    res.status(500).json({ message: "No se pudo eliminar el cliente" });
+  }
 };

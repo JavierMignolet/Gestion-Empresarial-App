@@ -1,6 +1,5 @@
-//Insumos.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Insumos() {
@@ -10,10 +9,8 @@ function Insumos() {
 
   const fetchInsumos = async () => {
     try {
-      const res = await axios.get("http://localhost:4000/api/insumos", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setInsumos(res.data);
+      const res = await axiosAuth.get("/api/insumos");
+      setInsumos(res.data || []);
     } catch (err) {
       console.error("Error al obtener insumos:", err);
       setError("No se pudieron cargar los insumos");
@@ -21,7 +18,7 @@ function Insumos() {
   };
 
   useEffect(() => {
-    fetchInsumos();
+    if (token) fetchInsumos();
   }, [token]);
 
   return (

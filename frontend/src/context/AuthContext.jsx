@@ -1,4 +1,4 @@
-// AuthContext.jsx
+// src/context/AuthContext.jsx
 import React, {
   createContext,
   useContext,
@@ -8,24 +8,26 @@ import React, {
 } from "react";
 import axios from "axios";
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 const API_BASE = import.meta?.env?.VITE_API_BASE || "http://localhost:4000";
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
-  const [empresa, setEmpresa] = useState(null); // <- NUEVO
+  const [empresa, setEmpresa] = useState(null);
   const [user, setUser] = useState(null); // { username, role }
 
   // Cargar sesión guardada
   useEffect(() => {
     const raw = localStorage.getItem("session");
     if (raw) {
-      const s = JSON.parse(raw);
-      setToken(s.token || null);
-      setEmpresa(s.empresa || null);
-      setUser(s.user || null);
+      try {
+        const s = JSON.parse(raw);
+        setToken(s.token || null);
+        setEmpresa(s.empresa || null);
+        setUser(s.user || null);
+      } catch {}
     }
   }, []);
 
@@ -46,26 +48,20 @@ export function AuthProvider({ children }) {
 
   // Cliente Axios autenticado con headers automáticos
   const axiosAuth = useMemo(() => {
-    const instance = axios.create({
-      baseURL: `${API_BASE}/api`,
-    });
+    const instance = axios.create({ baseURL: `${API_BASE}` });
     instance.interceptors.request.use((config) => {
       if (token) config.headers.Authorization = `Bearer ${token}`;
-      if (empresa) config.headers["x-company"] = empresa; // <- SIEMPRE SALE
+      if (empresa) config.headers["x-company"] = empresa;
       return config;
     });
     return instance;
   }, [token, empresa]);
 
-  // Métodos públicos
   const login = async ({ empresa, username, password }) => {
-    // header x-company opcional; el backend toma empresa del body igual
     const res = await axios.post(
       `${API_BASE}/api/auth/login`,
       { empresa, username, password },
-      {
-        headers: { "x-company": empresa },
-      }
+      { headers: { "x-company": empresa } }
     );
     const { token, role, username: uName, empresa: emp } = res.data || {};
     saveSession({ token, empresa: emp || empresa, username: uName, role });
@@ -87,3 +83,5 @@ export function AuthProvider({ children }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+export default AuthProvider;

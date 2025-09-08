@@ -9,7 +9,7 @@ import { tenantMiddleware } from "./middlewares/tenantMiddleware.js";
 import companyRoutes from "./routes/companyRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 
-// Rutas protegidas (cada router ya aplica verifyToken y, en su mayoría, tenantMiddleware)
+// Rutas protegidas
 import clienteRoutes from "./routes/clienteRoutes.js";
 import productoRoutes from "./routes/productoRoutes.js";
 import insumoRoutes from "./routes/insumoRoutes.js";
@@ -23,7 +23,7 @@ import capitalRoutes from "./routes/capitalRoutes.js";
 import pedidosRoutes from "./routes/pedidosRoutes.js";
 import reportesRoutes from "./routes/reportesRoutes.js";
 
-// 👇 Este es el router multi-tenant de configuración (cuentas, etc.)
+// Config multi-tenant (cuentas/usuarios)
 import configRouter from "./routes/config/index.js";
 
 dotenv.config();
@@ -31,15 +31,54 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+/* =========================
+   CORS (cerrado por dominio)
+   =========================
+   Configurá en .env:
+   - ALLOWED_ORIGINS=https://tu-frontend.vercel.app,http://localhost:5173
+   (opcional) ALLOWED_ORIGINS_REGEX=^https:\/\/.*\.vercel\.app$
+*/
+const explicitAllowed = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// defaults útiles en dev
+const defaults = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  process.env.FRONTEND_ORIGIN?.trim(),
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+].filter(Boolean);
+
+const ALLOWED = new Set([...defaults, ...explicitAllowed]);
+const ALLOWED_REGEX = process.env.ALLOWED_ORIGINS_REGEX
+  ? new RegExp(process.env.ALLOWED_ORIGINS_REGEX)
+  : null;
+
+const corsOrigin = (origin, cb) => {
+  // Permite llamadas server-to-server / Postman (sin header Origin)
+  if (!origin) return cb(null, true);
+  if (ALLOWED.has(origin)) return cb(null, true);
+  if (ALLOWED_REGEX && ALLOWED_REGEX.test(origin)) return cb(null, true);
+  return cb(new Error(`Not allowed by CORS: ${origin}`));
+};
+
+app.use(
+  cors({
+    origin: corsOrigin,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-company"],
+    credentials: false,
+  })
+);
+
 app.use(express.json());
 
 /**
  * 🔐 Tenant scoping global:
- * - Lee empresa desde header x-company o body/query y setea req.tenantSlug
- * - Útil para /auth/forgot y /auth/reset también
- *   (si preferís solo por router, podés quitar este app.use y agregar tenantMiddleware
- *    explícito en cada ruta pública que lo necesite, p.ej. POST /auth/reset)
+ * Lee empresa desde header x-company o body/query y setea req.tenantSlug.
+ * Útil también para /api/auth/forgot y /api/auth/reset.
  */
 app.use(tenantMiddleware);
 
@@ -53,7 +92,6 @@ app.use("/api/company", companyRoutes);
 app.use("/api/auth", authRoutes);
 
 // ===== Rutas protegidas =====
-// (cada uno trae verifyToken adentro y la mayoría usa tenantMiddleware interno también)
 app.use("/api/clientes", clienteRoutes);
 app.use("/api/productos", productoRoutes);
 app.use("/api/insumos", insumoRoutes);
@@ -67,7 +105,7 @@ app.use("/api/capital", capitalRoutes);
 app.use("/api/pedidos", pedidosRoutes);
 app.use("/api/reportes", reportesRoutes);
 
-// Configuración (usuarios/cuentas, etc.) – versión multi-tenant
+// Config multi-tenant (usuarios/cuentas)
 app.use("/api/config", configRouter);
 
 app.listen(PORT, () => {

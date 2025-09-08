@@ -1,9 +1,9 @@
-//src/controllers/pedidosController.js
+// src/controllers/pedidosController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const PEDIDOS_FILE = "./src/data/pedidos.json";
-const PRODUCTOS_FILE = "./src/data/productos.json";
-const VENTAS_FILE = "./src/data/ventas.json";
+const PEDIDOS_FILE = "/pedidos.json";
+const PRODUCTOS_FILE = "/productos.json";
+const VENTAS_FILE = "/ventas.json";
 
 /* ============ Helpers ============ */
 const nowISO = () => new Date().toISOString();
@@ -16,22 +16,30 @@ const normalizeDateOnlyToISO = (d) => {
   return isNaN(x.getTime()) ? null : x.toISOString();
 };
 
-async function ajustarStock(producto_id, cantidad, signo = -1) {
-  const productos = await readJSON(PRODUCTOS_FILE);
+const safeRead = (file) => {
+  const d = readJSON(file);
+  return Array.isArray(d) ? d : [];
+};
+const save = (file, arr) => writeJSON(file, Array.isArray(arr) ? arr : []);
+const nextId = (arr) =>
+  arr.length ? Math.max(...arr.map((x) => +x.id || 0)) + 1 : 1;
+
+function ajustarStock(producto_id, cantidad, signo = -1) {
+  const productos = safeRead(PRODUCTOS_FILE);
   const idx = productos.findIndex((p) => String(p.id) === String(producto_id));
   if (idx === -1) return false;
   const delta = signo * (Number(cantidad) || 0);
   const stockPrev = Number(productos[idx].stock || 0);
   const nuevoStock = stockPrev + delta;
   productos[idx].stock = nuevoStock < 0 ? 0 : nuevoStock;
-  await writeJSON(PRODUCTOS_FILE, productos);
+  save(PRODUCTOS_FILE, productos);
   return true;
 }
 
-async function crearVentaDesdePedido(p) {
-  const ventas = await readJSON(VENTAS_FILE);
+function crearVentaDesdePedido(p) {
+  const ventas = safeRead(VENTAS_FILE);
   const nueva = {
-    id: Date.now(),
+    id: nextId(ventas),
     fecha: nowISO(),
     cliente_id: p.cliente_id ?? null,
     producto_id: p.producto_id,
@@ -40,14 +48,14 @@ async function crearVentaDesdePedido(p) {
     total: (Number(p.cantidad) || 0) * (Number(p.precio_unitario) || 0),
   };
   ventas.push(nueva);
-  await writeJSON(VENTAS_FILE, ventas);
+  save(VENTAS_FILE, ventas);
   return nueva;
 }
 
 /* ============ GET ============ */
-export const getPedidos = async (req, res) => {
+export const getPedidos = (_req, res) => {
   try {
-    const pedidos = await readJSON(PEDIDOS_FILE);
+    const pedidos = safeRead(PEDIDOS_FILE);
     pedidos.sort((a, b) => new Date(b.fecha_pedido) - new Date(a.fecha_pedido));
     res.json(pedidos);
   } catch (err) {
@@ -57,7 +65,7 @@ export const getPedidos = async (req, res) => {
 };
 
 /* ============ POST: crear pedido ============ */
-export const createPedido = async (req, res) => {
+export const createPedido = (req, res) => {
   try {
     const {
       cliente_id,
@@ -68,13 +76,13 @@ export const createPedido = async (req, res) => {
       precio_unitario,
       fecha_estimada_entrega, // YYYY-MM-DD
       metodo_pago, // contado | contra_entrega | cuenta_corriente
-    } = req.body;
+    } = req.body || {};
 
     if (!producto_id || !cantidad || !precio_unitario) {
       return res.status(400).json({ error: "Faltan campos obligatorios" });
     }
 
-    const productos = await readJSON(PRODUCTOS_FILE);
+    const productos = safeRead(PRODUCTOS_FILE);
     const prod = productos.find((p) => String(p.id) === String(producto_id));
     if (!prod) return res.status(404).json({ error: "Producto no encontrado" });
 
@@ -85,7 +93,7 @@ export const createPedido = async (req, res) => {
     else if (metodo_pago === "cuenta_corriente") estado = "pendiente/cta cte";
 
     const nuevo = {
-      id: Date.now(),
+      id: nextId(safeRead(PEDIDOS_FILE)),
       fecha_pedido: nowISO(),
       fecha_estimada_entrega: normalizeDateOnlyToISO(fecha_estimada_entrega),
       cliente_id: cliente_id ?? null,
@@ -104,13 +112,13 @@ export const createPedido = async (req, res) => {
 
     // Contado => registrar venta ya (el stock se descuenta al entregar)
     if (nuevo.metodo_pago === "contado") {
-      await crearVentaDesdePedido(nuevo);
+      crearVentaDesdePedido(nuevo);
       nuevo.venta_registrada = true;
     }
 
-    const pedidos = await readJSON(PEDIDOS_FILE);
+    const pedidos = safeRead(PEDIDOS_FILE);
     pedidos.push(nuevo);
-    await writeJSON(PEDIDOS_FILE, pedidos);
+    save(PEDIDOS_FILE, pedidos);
 
     res.status(201).json({ message: "Pedido creado", pedido: nuevo });
   } catch (err) {
@@ -120,12 +128,12 @@ export const createPedido = async (req, res) => {
 };
 
 /* ============ PUT: actualizar pedido (cualquier campo) ============ */
-export const actualizarPedido = async (req, res) => {
+export const actualizarPedido = (req, res) => {
   try {
     const { id } = req.params;
     const cambios = req.body || {};
 
-    const pedidos = await readJSON(PEDIDOS_FILE);
+    const pedidos = safeRead(PEDIDOS_FILE);
     const idx = pedidos.findIndex((p) => String(p.id) === String(id));
     if (idx === -1)
       return res.status(404).json({ message: "Pedido no encontrado" });
@@ -186,22 +194,22 @@ export const actualizarPedido = async (req, res) => {
             nuevoEstado === "entregado/pagado" ||
             nuevoEstado === "entregado/pendiente")
         ) {
-          await ajustarStock(p.producto_id, p.cantidad, -1);
+          ajustarStock(p.producto_id, p.cantidad, -1);
           p.stock_descontado = true;
         }
       } else if (metodo === "contra_entrega") {
         if (nuevoEstado === "entregado/pagado") {
           if (!p.venta_registrada) {
-            await crearVentaDesdePedido(p);
+            crearVentaDesdePedido(p);
             p.venta_registrada = true;
           }
           if (!p.stock_descontado) {
-            await ajustarStock(p.producto_id, p.cantidad, -1);
+            ajustarStock(p.producto_id, p.cantidad, -1);
             p.stock_descontado = true;
           }
         }
         if (!p.stock_descontado && nuevoEstado === "entregado") {
-          await ajustarStock(p.producto_id, p.cantidad, -1);
+          ajustarStock(p.producto_id, p.cantidad, -1);
           p.stock_descontado = true;
         }
       } else if (metodo === "cuenta_corriente") {
@@ -209,18 +217,18 @@ export const actualizarPedido = async (req, res) => {
           !p.stock_descontado &&
           (nuevoEstado === "entregado/pendiente" || nuevoEstado === "entregado")
         ) {
-          await ajustarStock(p.producto_id, p.cantidad, -1);
+          ajustarStock(p.producto_id, p.cantidad, -1);
           p.stock_descontado = true;
         }
         if (nuevoEstado === "pagada" && !p.venta_registrada) {
-          await crearVentaDesdePedido(p);
+          crearVentaDesdePedido(p);
           p.venta_registrada = true;
         }
       }
     }
 
     pedidos[idx] = p;
-    await writeJSON(PEDIDOS_FILE, pedidos);
+    save(PEDIDOS_FILE, pedidos);
     res.json(p);
   } catch (error) {
     console.error("❌ Error al actualizar pedido:", error);
@@ -229,15 +237,15 @@ export const actualizarPedido = async (req, res) => {
 };
 
 /* ============ DELETE: eliminar pedido ============ */
-export const eliminarPedido = async (req, res) => {
+export const eliminarPedido = (req, res) => {
   try {
     const { id } = req.params;
-    const pedidos = await readJSON(PEDIDOS_FILE);
+    const pedidos = safeRead(PEDIDOS_FILE);
     const existe = pedidos.some((p) => String(p.id) === String(id));
     if (!existe)
       return res.status(404).json({ message: "Pedido no encontrado" });
     const nuevos = pedidos.filter((p) => String(p.id) !== String(id));
-    await writeJSON(PEDIDOS_FILE, nuevos);
+    save(PEDIDOS_FILE, nuevos);
     res.json({ message: "Pedido eliminado" });
   } catch (error) {
     console.error("❌ Error al eliminar pedido:", error);

@@ -1,6 +1,5 @@
-//capital.jsx
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 const fmtMoney = (n) =>
@@ -25,7 +24,6 @@ function RowActions({ onEdit, onDelete }) {
 
 export default function Capital() {
   const { token } = useAuth();
-  const headers = { Authorization: `Bearer ${token}` };
 
   const [view, setView] = useState("menu"); // menu | inversion | fijos | cvu | gastos
   const [mensaje, setMensaje] = useState("");
@@ -72,40 +70,30 @@ export default function Capital() {
 
   // ====== LOADERS ======
   const loadInversion = async () => {
-    const { data } = await axios.get(
-      "http://localhost:4000/api/capital/inversion",
-      { headers }
-    );
+    const { data } = await axiosAuth.get("/api/capital/inversion");
     setInvData(data || []);
   };
   const loadFijos = async () => {
-    const { data } = await axios.get(
-      "http://localhost:4000/api/capital/costos-fijos",
-      { headers }
-    );
+    const { data } = await axiosAuth.get("/api/capital/costos-fijos");
     setFixData(data || []);
   };
   const loadGastos = async () => {
-    const { data } = await axios.get(
-      "http://localhost:4000/api/capital/gastos",
-      { headers }
-    );
+    const { data } = await axiosAuth.get("/api/capital/gastos");
     setGData(data || []);
   };
   const loadCVU = async () => {
-    const { data } = await axios.get("http://localhost:4000/api/capital/cvu", {
-      headers,
-    });
+    const { data } = await axiosAuth.get("/api/capital/cvu");
     setCvu(data || { detalle: [], total: 0 });
   };
 
   useEffect(() => {
+    if (!token) return;
     if (view === "inversion") loadInversion();
     if (view === "fijos") loadFijos();
     if (view === "gastos") loadGastos();
     if (view === "cvu") loadCVU();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, token]);
 
   const handleAutoTotal = (form, setForm) => (e) => {
     const { name, value } = e.target;
@@ -128,16 +116,10 @@ export default function Capital() {
       total: +invForm.total || 0,
     };
     if (invEditId) {
-      await axios.put(
-        `http://localhost:4000/api/capital/inversion/${invEditId}`,
-        payload,
-        { headers }
-      );
+      await axiosAuth.put(`/api/capital/inversion/${invEditId}`, payload);
       setMensaje("✅ Inversión actualizada");
     } else {
-      await axios.post("http://localhost:4000/api/capital/inversion", payload, {
-        headers,
-      });
+      await axiosAuth.post("/api/capital/inversion", payload);
       setMensaje("✅ Inversión registrada");
     }
     await loadInversion();
@@ -169,9 +151,7 @@ export default function Capital() {
   };
   const invDelete = async (id) => {
     if (!window.confirm("¿Eliminar ítem de inversión?")) return;
-    await axios.delete(`http://localhost:4000/api/capital/inversion/${id}`, {
-      headers,
-    });
+    await axiosAuth.delete(`/api/capital/inversion/${id}`);
     await loadInversion();
   };
 
@@ -185,18 +165,10 @@ export default function Capital() {
       total: +fixForm.total || 0,
     };
     if (fixEditId) {
-      await axios.put(
-        `http://localhost:4000/api/capital/costos-fijos/${fixEditId}`,
-        payload,
-        { headers }
-      );
+      await axiosAuth.put(`/api/capital/costos-fijos/${fixEditId}`, payload);
       setMensaje("✅ Costo fijo actualizado");
     } else {
-      await axios.post(
-        "http://localhost:4000/api/capital/costos-fijos",
-        payload,
-        { headers }
-      );
+      await axiosAuth.post("/api/capital/costos-fijos", payload);
       setMensaje("✅ Costo fijo registrado");
     }
     await loadFijos();
@@ -226,9 +198,7 @@ export default function Capital() {
   };
   const fixDelete = async (id) => {
     if (!window.confirm("¿Eliminar costo fijo?")) return;
-    await axios.delete(`http://localhost:4000/api/capital/costos-fijos/${id}`, {
-      headers,
-    });
+    await axiosAuth.delete(`/api/capital/costos-fijos/${id}`);
     await loadFijos();
   };
 
@@ -242,16 +212,10 @@ export default function Capital() {
       total: +gForm.total || 0,
     };
     if (gEditId) {
-      await axios.put(
-        `http://localhost:4000/api/capital/gastos/${gEditId}`,
-        payload,
-        { headers }
-      );
+      await axiosAuth.put(`/api/capital/gastos/${gEditId}`, payload);
       setMensaje("✅ Gasto actualizado");
     } else {
-      await axios.post("http://localhost:4000/api/capital/gastos", payload, {
-        headers,
-      });
+      await axiosAuth.post("/api/capital/gastos", payload);
       setMensaje("✅ Gasto registrado");
     }
     await loadGastos();
@@ -281,9 +245,7 @@ export default function Capital() {
   };
   const gDelete = async (id) => {
     if (!window.confirm("¿Eliminar gasto?")) return;
-    await axios.delete(`http://localhost:4000/api/capital/gastos/${id}`, {
-      headers,
-    });
+    await axiosAuth.delete(`/api/capital/gastos/${id}`);
     await loadGastos();
   };
 

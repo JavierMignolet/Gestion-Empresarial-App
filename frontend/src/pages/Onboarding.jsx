@@ -1,8 +1,7 @@
 // src/pages/Onboarding.jsx
 import React, { useState } from "react";
 import axios from "axios";
-import { useAuth } from "../context/AuthContext";
-
+import { useAuth } from "../context/AuthContext.jsx";
 const API_BASE = import.meta?.env?.VITE_API_BASE || "http://localhost:4000";
 
 export default function Onboarding() {

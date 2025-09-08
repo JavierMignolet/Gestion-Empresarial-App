@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "id": 1,
+    "nombre": "Tequeño",
+    "tipo": "Clasico",
+    "presentacion": "Bolsa x 16 un.",
+    "precio_costo": 0,
+    "stock": 0,
+    "precio_consumidor": 5500,
+    "precio_minorista": 4000,
+    "precio_mayorista": 3200
+  }
+]

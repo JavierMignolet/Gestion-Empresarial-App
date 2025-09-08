@@ -1,14 +1,12 @@
 // src/controllers/ventasController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const VENTAS_FILE = "./src/data/ventas.json";
+const VENTAS_FILE = "/ventas.json";
 
 // Normaliza fecha (evita desfase de huso)
 const normalizeFecha = (f) => {
   if (!f) return new Date().toISOString();
-  // Si viene como YYYY-MM-DD desde <input type="date">
   if (/^\d{4}-\d{2}-\d{2}$/.test(f)) {
-    // Guardar a mediodía UTC para que en cualquier TZ se muestre el día correcto
     return new Date(`${f}T12:00:00.000Z`).toISOString();
   }
   const d = new Date(f);
@@ -17,11 +15,16 @@ const normalizeFecha = (f) => {
 
 const isEmpty = (v) => v === undefined || v === null || v === "";
 
+const leer = () => {
+  const d = readJSON(VENTAS_FILE);
+  return Array.isArray(d) ? d : [];
+};
+const guardar = (arr) => writeJSON(VENTAS_FILE, Array.isArray(arr) ? arr : []);
+
 // ✅ Obtener ventas
-export const getVentas = (req, res) => {
+export const getVentas = (_req, res) => {
   try {
-    const ventas = readJSON(VENTAS_FILE);
-    res.json(ventas);
+    res.json(leer());
   } catch (err) {
     console.error("getVentas error:", err);
     res.status(500).json({ message: "Error al leer ventas" });
@@ -32,7 +35,7 @@ export const getVentas = (req, res) => {
 export const addVenta = (req, res) => {
   try {
     const { fecha, cliente_id, producto_id, cantidad, precio_unitario, total } =
-      req.body;
+      req.body || {};
 
     if (
       isEmpty(cliente_id) ||
@@ -49,7 +52,7 @@ export const addVenta = (req, res) => {
       return res.status(400).json({ message: "Valores numéricos inválidos" });
     }
 
-    const ventas = readJSON(VENTAS_FILE);
+    const ventas = leer();
 
     const nuevaVenta = {
       id: Date.now(),
@@ -65,7 +68,7 @@ export const addVenta = (req, res) => {
     };
 
     ventas.push(nuevaVenta);
-    writeJSON(VENTAS_FILE, ventas);
+    guardar(ventas);
 
     res.status(201).json(nuevaVenta);
   } catch (err) {
@@ -78,10 +81,10 @@ export const addVenta = (req, res) => {
 export const updateVenta = (req, res) => {
   try {
     const { id } = req.params;
-    const body = req.body;
+    const body = req.body || {};
 
-    const ventas = readJSON(VENTAS_FILE);
-    const index = ventas.findIndex((v) => v.id == id);
+    const ventas = leer();
+    const index = ventas.findIndex((v) => String(v.id) === String(id));
     if (index === -1) {
       return res.status(404).json({ message: "Venta no encontrada" });
     }
@@ -119,7 +122,7 @@ export const updateVenta = (req, res) => {
       total: totalFinal,
     };
 
-    writeJSON(VENTAS_FILE, ventas);
+    guardar(ventas);
     res.json(ventas[index]);
   } catch (err) {
     console.error("updateVenta error:", err);
@@ -131,13 +134,13 @@ export const updateVenta = (req, res) => {
 export const deleteVenta = (req, res) => {
   try {
     const { id } = req.params;
-    const ventas = readJSON(VENTAS_FILE);
-    const existe = ventas.some((v) => v.id == id);
+    const ventas = leer();
+    const existe = ventas.some((v) => String(v.id) === String(id));
     if (!existe) {
       return res.status(404).json({ message: "Venta no encontrada" });
     }
-    const nuevas = ventas.filter((v) => v.id != id);
-    writeJSON(VENTAS_FILE, nuevas);
+    const nuevas = ventas.filter((v) => String(v.id) !== String(id));
+    guardar(nuevas);
     res.json({ message: "Venta eliminada" });
   } catch (err) {
     console.error("deleteVenta error:", err);

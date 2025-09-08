@@ -1,13 +1,18 @@
-//src/controllers/pagosController.js
+// src/controllers/pagosController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const PAGOS_FILE = "./src/data/pagos.json";
+const FILE = "/pagos.json";
+
+const safeRead = () => {
+  const d = readJSON(FILE);
+  return Array.isArray(d) ? d : [];
+};
+const save = (arr) => writeJSON(FILE, Array.isArray(arr) ? arr : []);
 
 // GET /api/pagos
-export const getPagos = async (req, res) => {
+export const getPagos = (_req, res) => {
   try {
-    const pagos = await readJSON(PAGOS_FILE);
-    res.json(pagos);
+    res.json(safeRead());
   } catch (err) {
     console.error("❌ Error al leer pagos:", err);
     res.status(500).json({ error: "Error al leer pagos" });
@@ -15,15 +20,15 @@ export const getPagos = async (req, res) => {
 };
 
 // POST /api/pagos
-export const registrarPago = async (req, res) => {
+export const registrarPago = (req, res) => {
   try {
-    const { concepto, categoria, monto, fecha, usuario } = req.body;
+    const { concepto, categoria, monto, fecha, usuario } = req.body || {};
 
     if (!concepto || !categoria || monto === undefined) {
       return res.status(400).json({ error: "Faltan datos del pago" });
     }
 
-    const pagos = await readJSON(PAGOS_FILE);
+    const pagos = safeRead();
 
     const nuevoPago = {
       id: Date.now(),
@@ -35,7 +40,7 @@ export const registrarPago = async (req, res) => {
     };
 
     pagos.push(nuevoPago);
-    await writeJSON(PAGOS_FILE, pagos);
+    save(pagos);
 
     res.status(201).json({ message: "Pago registrado", data: nuevoPago });
   } catch (err) {
@@ -45,13 +50,13 @@ export const registrarPago = async (req, res) => {
 };
 
 // PUT /api/pagos/:id
-export const actualizarPago = async (req, res) => {
+export const actualizarPago = (req, res) => {
   try {
     const { id } = req.params;
-    const { concepto, categoria, monto, fecha, usuario } = req.body;
+    const { concepto, categoria, monto, fecha, usuario } = req.body || {};
 
-    const pagos = await readJSON(PAGOS_FILE);
-    const index = pagos.findIndex((p) => p.id == id);
+    const pagos = safeRead();
+    const index = pagos.findIndex((p) => String(p.id) === String(id));
 
     if (index === -1) {
       return res.status(404).json({ error: "Pago no encontrado" });
@@ -67,7 +72,7 @@ export const actualizarPago = async (req, res) => {
     };
 
     pagos[index] = actualizado;
-    await writeJSON(PAGOS_FILE, pagos);
+    save(pagos);
 
     res.json({ message: "Pago actualizado", data: actualizado });
   } catch (err) {
@@ -77,19 +82,19 @@ export const actualizarPago = async (req, res) => {
 };
 
 // DELETE /api/pagos/:id
-export const eliminarPago = async (req, res) => {
+export const eliminarPago = (req, res) => {
   try {
     const { id } = req.params;
 
-    const pagos = await readJSON(PAGOS_FILE);
-    const existe = pagos.some((p) => p.id == id);
+    const pagos = safeRead();
+    const existe = pagos.some((p) => String(p.id) === String(id));
 
     if (!existe) {
       return res.status(404).json({ error: "Pago no encontrado" });
     }
 
-    const restantes = pagos.filter((p) => p.id != id);
-    await writeJSON(PAGOS_FILE, restantes);
+    const restantes = pagos.filter((p) => String(p.id) !== String(id));
+    save(restantes);
 
     res.json({ message: "Pago eliminado" });
   } catch (err) {

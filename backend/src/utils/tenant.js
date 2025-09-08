@@ -1,49 +1,56 @@
 // src/utils/tenant.js
 import { AsyncLocalStorage } from "node:async_hooks";
+import path from "path";
+import fs from "fs";
 
-const als = new AsyncLocalStorage();
-let fallbackTenant = null;
-
-export function runWithTenant(slug, fn) {
-  als.run({ tenant: slug || null }, fn);
+/** Normaliza nombre de empresa a slug: sin acentos, minúsculas, alfanumérico */
+export function empresaToSlug(name) {
+  if (!name) return null;
+  return String(name)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-export function setCurrentTenant(slug) {
-  // fallback por si algo queda fuera del ALS
-  fallbackTenant = slug || null;
+// ALS para propagar tenant en el request
+export const tenantALS = new AsyncLocalStorage();
+
+// Fallback por si algo corre fuera del ALS
+let _currentTenant = null;
+
+export function runWithTenant(slug, fn) {
+  return tenantALS.run({ slug: slug || null }, fn);
 }
 
 export function getCurrentTenant() {
-  return als.getStore()?.tenant ?? fallbackTenant ?? null;
+  const store = tenantALS.getStore();
+  return (store && store.slug) || _currentTenant || null;
 }
 
-export function empresaToSlug(name) {
-  return String(name || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+export function setCurrentTenant(slug) {
+  _currentTenant = slug || null;
 }
 
 /**
- * Recibe:
- *  - una ruta relativa como "config/cuentas.json" o "ventas/ventas.json"
- *  - o una absoluta relativa al repo como "./src/data/config/ventas.json"
- * Devuelve la ruta correcta con el tenant si existe.
+ * Devuelve un path físico dentro del tenant actual (si existe),
+ * p. ej. getTenantPath('/config/cuentas.json') -> ./src/data/tenants/<slug>/config/cuentas.json
+ * Si no hay tenant, cae a ./src/data/<relPath>.
  */
-export function getTenantPath(relOrAbs) {
-  const raw = String(relOrAbs || "").replace(/\\/g, "/");
+export function getTenantPath(relPath, slugOverride = null) {
+  const slug = slugOverride || getCurrentTenant();
+  const clean = String(relPath || "").replace(/^\.?\/?src\/data\/?/i, "");
+  const withoutLeading = clean.startsWith("/") ? clean.slice(1) : clean;
 
-  // Si ya apunta a .../tenants/... la dejamos como está
-  if (raw.includes("/tenants/")) {
-    return raw.startsWith("./") ? raw : `./${raw}`;
+  const baseDir = slug
+    ? path.join("./src/data/tenants", slug)
+    : path.join("./src/data");
+
+  const full = path.join(baseDir, withoutLeading);
+  const dir = path.dirname(full);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-
-  // Quitar prefijo "./src/data/" si vino completo
-  const sub = raw.replace(/^\.?\/?src\/data\/?/, "");
-
-  const slug = getCurrentTenant();
-  const base = slug ? `./src/data/tenants/${slug}` : `./src/data`;
-
-  return `${base}/${sub}`;
+  return full;
 }

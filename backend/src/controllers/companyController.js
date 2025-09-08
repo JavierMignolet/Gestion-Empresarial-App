@@ -12,7 +12,7 @@ function readOr(path, defaultValue) {
 /**
  * GET /api/company/exists?empresa=Acme
  * Devuelve si la empresa (tenant) ya tiene cuentas creadas.
- * Requiere que tenantMiddleware haya seteado el tenant en base a ?empresa o x-company.
+ * Usa archivo del tenant: /config/cuentas.json
  */
 export const companyExists = async (req, res) => {
   try {
@@ -23,8 +23,7 @@ export const companyExists = async (req, res) => {
     const slug = empresaToSlug(empresa);
     if (!slug) return res.status(400).json({ message: "Empresa inválida." });
 
-    // Si el tenant existe tendrá cuentas.json con al menos 1 cuenta
-    const cuentas = readJSON("./src/data/config/cuentas.json");
+    const cuentas = readJSON("/config/cuentas.json");
     const exists = Array.isArray(cuentas) && cuentas.length > 0;
 
     return res.json({ exists, empresa: slug });
@@ -36,18 +35,8 @@ export const companyExists = async (req, res) => {
 
 /**
  * POST /api/company/register
- * Body:
- * {
- *   empresa: string,         // requerido
- *   usuario: string,         // requerido (primer usuario)
- *   password: string,        // requerido
- *   tipo?: "admin"|"vendedor"  (default: "admin")
- *   email?: string,
- *   telefono?: string
- * }
- *
- * Crea la estructura del tenant (datos “limpios”) y el primer usuario.
- * Requiere que tenantMiddleware haya seteado el tenant en base a body.empresa o header x-company.
+ * Body: { empresa, usuario, password, tipo=admin, email?, telefono? }
+ * Crea estructura del tenant y primer usuario.
  */
 export const registerCompany = async (req, res) => {
   try {
@@ -65,7 +54,6 @@ export const registerCompany = async (req, res) => {
         .status(400)
         .json({ message: "Completá empresa, usuario y contraseña." });
     }
-
     if (String(password).length < 6) {
       return res
         .status(400)
@@ -75,8 +63,8 @@ export const registerCompany = async (req, res) => {
     const slug = empresaToSlug(empresa);
     if (!slug) return res.status(400).json({ message: "Empresa inválida." });
 
-    // Si ya hay cuentas, la empresa ya está registrada en este tenant
-    const cuentasPath = "./src/data/config/cuentas.json";
+    // Si ya hay cuentas en el tenant → empresa ya registrada
+    const cuentasPath = "/config/cuentas.json";
     const cuentasActuales = readOr(cuentasPath, []);
     if (Array.isArray(cuentasActuales) && cuentasActuales.length > 0) {
       return res
@@ -84,25 +72,26 @@ export const registerCompany = async (req, res) => {
         .json({ message: "La empresa ya está registrada." });
     }
 
-    // Inicializar estructura básica del tenant si faltan archivos
+    // Semillas tenant-aware (todas rutas LÓGICAS con “/”)
     const seeds = [
       [
-        "./src/data/config/empresa.json",
+        "/config/empresa.json",
         { nombre: empresa, slug, createdAt: new Date().toISOString() },
       ],
-      ["./src/data/config/cuentas.json", []],
-      ["./src/data/clientes.json", []],
-      ["./src/data/productos.json", []],
-      ["./src/data/insumos.json", []],
-      ["./src/data/produccion.json", []],
-      ["./src/data/ventas.json", []],
-      ["./src/data/pedidos.json", []],
-      ["./src/data/compras.json", []],
-      ["./src/data/pagos.json", []],
-      ["./src/data/gastos.json", []],
-      ["./src/data/capital.json", []],
+      ["/config/cuentas.json", []],
+      ["/clientes.json", []],
+      ["/productos.json", []],
+      ["/insumos.json", []],
+      ["/produccion.json", []],
+      ["/ventas.json", []],
+      ["/pedidos.json", []],
+      ["/compras.json", []],
+      ["/pagos.json", []],
+      ["/gastos.json", []],
+      ["/capital.json", []],
     ];
 
+    // Crear archivos si no existen
     for (const [path, value] of seeds) {
       const current = readJSON(path);
       if (typeof current === "undefined" || current === null) {
@@ -110,7 +99,7 @@ export const registerCompany = async (req, res) => {
       }
     }
 
-    // Crear primer usuario (admin por defecto) con email/teléfono
+    // Crear primer usuario
     const hashed = await bcrypt.hash(String(password), 10);
     const now = new Date().toISOString();
     const firstUser = {
@@ -124,9 +113,7 @@ export const registerCompany = async (req, res) => {
       updatedAt: now,
     };
 
-    // Guardar cuentas
     const nuevasCuentas = readOr(cuentasPath, []);
-    // evitamos duplicado por username (poco probable aquí, pero por las dudas)
     if (
       nuevasCuentas.some(
         (u) =>
@@ -135,6 +122,7 @@ export const registerCompany = async (req, res) => {
     ) {
       return res.status(409).json({ message: "Ese usuario ya existe." });
     }
+
     nuevasCuentas.push(firstUser);
     writeJSON(cuentasPath, nuevasCuentas);
 

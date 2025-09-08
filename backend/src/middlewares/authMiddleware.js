@@ -1,6 +1,7 @@
 // src/middlewares/authMiddleware.js
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { empresaToSlug } from "../utils/tenant.js"; // ⬅️ importa el slugifier
 dotenv.config();
 
 export const verifyToken = (req, res, next) => {
@@ -12,19 +13,18 @@ export const verifyToken = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Chequeo extra: debe coincidir empresa en header (si viene)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "devsecret");
+    // 🔁 Normalizamos el header igual que el token:
     const headerEmpresa = req.headers["x-company"];
-    if (
-      decoded?.empresa &&
-      headerEmpresa &&
-      decoded.empresa !== headerEmpresa
-    ) {
+    const headerSlug = headerEmpresa ? empresaToSlug(headerEmpresa) : null;
+
+    if (decoded?.empresa && headerSlug && decoded.empresa !== headerSlug) {
       return res
         .status(403)
         .json({ message: "Empresa inválida para este token" });
     }
-    req.user = decoded; // { id, username, role, empresa }
+
+    req.user = decoded; // { id, username, role, empresa: <slug> }
     next();
   } catch (err) {
     return res.status(403).json({ message: "Token inválido" });

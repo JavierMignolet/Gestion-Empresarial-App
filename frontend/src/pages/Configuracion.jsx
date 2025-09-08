@@ -1,13 +1,10 @@
 // src/pages/Configuracion.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
-const API_BASE = import.meta?.env?.VITE_API_BASE || "http://localhost:4000";
-
 export default function Configuracion() {
-  const { token, empresa } = useAuth();
-  const headers = { Authorization: `Bearer ${token}`, "x-company": empresa };
+  const { token } = useAuth();
 
   const [usuarios, setUsuarios] = useState([]);
   const [error, setError] = useState("");
@@ -16,7 +13,6 @@ export default function Configuracion() {
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
-  // toggles de visibilidad
   const [showPass, setShowPass] = useState(false); // creación
   const [showNewPass, setShowNewPass] = useState(false); // edición
 
@@ -43,9 +39,7 @@ export default function Configuracion() {
 
   const fetchUsuarios = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/config/cuentas`, {
-        headers,
-      });
+      const res = await axiosAuth.get("/api/config/cuentas");
       setUsuarios(res.data || []);
     } catch (err) {
       console.error("GET cuentas", err);
@@ -54,9 +48,9 @@ export default function Configuracion() {
   };
 
   useEffect(() => {
-    fetchUsuarios();
+    if (token) fetchUsuarios();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const openNuevo = () => {
     setEditMode(false);
@@ -108,9 +102,7 @@ export default function Configuracion() {
           payload.newPassword = form.newPassword;
         }
 
-        await axios.put(`${API_BASE}/api/config/cuentas/${form.id}`, payload, {
-          headers,
-        });
+        await axiosAuth.put(`/api/config/cuentas/${form.id}`, payload);
         setOkMsg("✅ Usuario actualizado.");
       } else {
         if (!form.username || !form.password) {
@@ -126,9 +118,7 @@ export default function Configuracion() {
           email: form.email || "",
           telefono: form.telefono || "",
         };
-        await axios.post(`${API_BASE}/api/config/cuentas`, payload, {
-          headers,
-        });
+        await axiosAuth.post("/api/config/cuentas", payload);
         setOkMsg("✅ Usuario creado.");
       }
       setShowModal(false);
@@ -145,7 +135,7 @@ export default function Configuracion() {
   const eliminar = async (u) => {
     if (!window.confirm(`¿Eliminar usuario "${u.username}"?`)) return;
     try {
-      await axios.delete(`${API_BASE}/api/config/cuentas/${u.id}`, { headers });
+      await axiosAuth.delete(`/api/config/cuentas/${u.id}`);
       fetchUsuarios();
     } catch (err) {
       console.error("delete cuenta", err);

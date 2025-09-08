@@ -1,19 +1,20 @@
-//capitalController.js
+// src/controllers/capitalController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-const CAPITAL_FILE = "./src/data/capital.json"; // histórico (aporte/retiro) — opcional
-const INVERSION_FILE = "./src/data/capital_inversion.json";
-const COSTOS_FIJOS_FILE = "./src/data/costos_fijos.json";
-const GASTOS_FILE = "./src/data/gastos.json"; // compartido con módulo Gastos
+/** Archivos por tenant (resueltos por fileHandler) */
+const CAPITAL_FILE = "/capital.json"; // histórico (aporte/retiro) — opcional
+const INVERSION_FILE = "/capital_inversion.json";
+const COSTOS_FIJOS_FILE = "/costos_fijos.json";
+const GASTOS_FILE = "/gastos.json"; // compartido con módulo Gastos
 
-const COMPRAS_FILE = "./src/data/compras.json";
-const PRODUCCIONES_FILE = "./src/data/producciones.json";
+const COMPRAS_FILE = "/compras.json";
+const PRODUCCIONES_FILE = "/producciones.json";
 
 /* ========= Helpers ========= */
 const safeRead = (p, fallback = []) => {
   try {
     const d = readJSON(p);
-    return d ?? fallback;
+    return Array.isArray(d) ? d : fallback;
   } catch {
     return fallback;
   }
@@ -23,12 +24,12 @@ const nextId = (arr) =>
 
 /* ========= Histórico anterior (aporte / retiro) ========= */
 const calcularTotal = (historial) =>
-  historial.reduce((acc, item) => {
+  (historial || []).reduce((acc, item) => {
     const m = parseFloat(item.monto) || 0;
     return item.tipo === "aporte" ? acc + m : acc - m;
   }, 0);
 
-export const getCapital = (req, res) => {
+export const getCapital = (_req, res) => {
   try {
     const historial = safeRead(CAPITAL_FILE, []);
     const total = calcularTotal(historial);
@@ -40,7 +41,7 @@ export const getCapital = (req, res) => {
 
 export const registrarMovimientoCapital = (req, res) => {
   try {
-    const { concepto, tipo, monto, fecha, usuario } = req.body;
+    const { concepto, tipo, monto, fecha, usuario } = req.body || {};
     if (!concepto || !tipo || monto === undefined) {
       return res.status(400).json({ error: "Faltan datos del capital" });
     }
@@ -67,7 +68,7 @@ export const registrarMovimientoCapital = (req, res) => {
       data: nuevo,
       total: calcularTotal(historial),
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Error al registrar capital" });
   }
 };
@@ -75,10 +76,10 @@ export const registrarMovimientoCapital = (req, res) => {
 export const actualizarMovimientoCapital = (req, res) => {
   try {
     const { id } = req.params;
-    const { concepto, tipo, monto, fecha, usuario } = req.body;
+    const { concepto, tipo, monto, fecha, usuario } = req.body || {};
 
     const historial = safeRead(CAPITAL_FILE, []);
-    const idx = historial.findIndex((r) => r.id == id);
+    const idx = historial.findIndex((r) => String(r.id) === String(id));
     if (idx === -1)
       return res.status(404).json({ error: "Movimiento no encontrado" });
 
@@ -111,7 +112,7 @@ export const actualizarMovimientoCapital = (req, res) => {
       data: historial[idx],
       total: calcularTotal(historial),
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Error al actualizar capital" });
   }
 };
@@ -120,24 +121,24 @@ export const eliminarMovimientoCapital = (req, res) => {
   try {
     const { id } = req.params;
     const historial = safeRead(CAPITAL_FILE, []);
-    if (!historial.some((r) => r.id == id))
+    if (!historial.some((r) => String(r.id) === String(id)))
       return res.status(404).json({ error: "Movimiento no encontrado" });
-    const nuevo = historial.filter((r) => r.id != id);
+    const nuevo = historial.filter((r) => String(r.id) !== String(id));
     writeJSON(CAPITAL_FILE, nuevo);
     res.json({ message: "Movimiento eliminado", total: calcularTotal(nuevo) });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Error al eliminar capital" });
   }
 };
 
 /* ========= Capital de inversión ========= */
-export const listInversion = (req, res) => {
+export const listInversion = (_req, res) => {
   res.json(safeRead(INVERSION_FILE, []));
 };
 export const addInversion = (req, res) => {
   try {
     const { fecha, descripcion, tipo, cantidad, precio_unitario, total } =
-      req.body;
+      req.body || {};
     if (!descripcion)
       return res.status(400).json({ error: "Falta descripción" });
     const data = safeRead(INVERSION_FILE, []);
@@ -154,16 +155,16 @@ export const addInversion = (req, res) => {
     data.push(row);
     writeJSON(INVERSION_FILE, data);
     res.status(201).json(row);
-  } catch (e) {
+  } catch {
     res.status(500).json({ error: "Error al guardar inversión" });
   }
 };
 export const updateInversion = (req, res) => {
   try {
     const { id } = req.params;
-    const body = req.body;
+    const body = req.body || {};
     const data = safeRead(INVERSION_FILE, []);
-    const idx = data.findIndex((x) => x.id == id);
+    const idx = data.findIndex((x) => String(x.id) === String(id));
     if (idx === -1) return res.status(404).json({ error: "No encontrado" });
     const prev = data[idx];
     const cantidad = body.cantidad != null ? +body.cantidad : prev.cantidad;
@@ -191,9 +192,9 @@ export const deleteInversion = (req, res) => {
   try {
     const { id } = req.params;
     const data = safeRead(INVERSION_FILE, []);
-    if (!data.some((x) => x.id == id))
+    if (!data.some((x) => String(x.id) === String(id)))
       return res.status(404).json({ error: "No encontrado" });
-    const nuevo = data.filter((x) => x.id != id);
+    const nuevo = data.filter((x) => String(x.id) !== String(id));
     writeJSON(INVERSION_FILE, nuevo);
     res.json({ message: "Eliminado" });
   } catch {
@@ -202,12 +203,13 @@ export const deleteInversion = (req, res) => {
 };
 
 /* ========= Costos fijos ========= */
-export const listCostosFijos = (req, res) => {
+export const listCostosFijos = (_req, res) => {
   res.json(safeRead(COSTOS_FIJOS_FILE, []));
 };
 export const addCostoFijo = (req, res) => {
   try {
-    const { fecha, descripcion, cantidad, precio_unitario, total } = req.body;
+    const { fecha, descripcion, cantidad, precio_unitario, total } =
+      req.body || {};
     if (!descripcion)
       return res.status(400).json({ error: "Falta descripción" });
     const data = safeRead(COSTOS_FIJOS_FILE, []);
@@ -230,9 +232,9 @@ export const addCostoFijo = (req, res) => {
 export const updateCostoFijo = (req, res) => {
   try {
     const { id } = req.params;
-    const body = req.body;
+    const body = req.body || {};
     const data = safeRead(COSTOS_FIJOS_FILE, []);
-    const idx = data.findIndex((x) => x.id == id);
+    const idx = data.findIndex((x) => String(x.id) === String(id));
     if (idx === -1) return res.status(404).json({ error: "No encontrado" });
     const prev = data[idx];
     const cantidad = body.cantidad != null ? +body.cantidad : prev.cantidad;
@@ -259,9 +261,9 @@ export const deleteCostoFijo = (req, res) => {
   try {
     const { id } = req.params;
     const data = safeRead(COSTOS_FIJOS_FILE, []);
-    if (!data.some((x) => x.id == id))
+    if (!data.some((x) => String(x.id) === String(id)))
       return res.status(404).json({ error: "No encontrado" });
-    const nuevo = data.filter((x) => x.id != id);
+    const nuevo = data.filter((x) => String(x.id) !== String(id));
     writeJSON(COSTOS_FIJOS_FILE, nuevo);
     res.json({ message: "Eliminado" });
   } catch {
@@ -269,13 +271,14 @@ export const deleteCostoFijo = (req, res) => {
   }
 };
 
-/* ========= Gastos (vinculado a modulo Gastos) ========= */
-export const listGastos = (req, res) => {
+/* ========= Gastos (vinculado a módulo Gastos) ========= */
+export const listGastos = (_req, res) => {
   res.json(safeRead(GASTOS_FILE, []));
 };
 export const addGasto = (req, res) => {
   try {
-    const { fecha, descripcion, cantidad, precio_unitario, total } = req.body;
+    const { fecha, descripcion, cantidad, precio_unitario, total } =
+      req.body || {};
     if (!descripcion)
       return res.status(400).json({ error: "Falta descripción" });
     const data = safeRead(GASTOS_FILE, []);
@@ -298,9 +301,9 @@ export const addGasto = (req, res) => {
 export const updateGasto = (req, res) => {
   try {
     const { id } = req.params;
-    const body = req.body;
+    const body = req.body || {};
     const data = safeRead(GASTOS_FILE, []);
-    const idx = data.findIndex((x) => x.id == id);
+    const idx = data.findIndex((x) => String(x.id) === String(id));
     if (idx === -1) return res.status(404).json({ error: "No encontrado" });
     const prev = data[idx];
     const cantidad = body.cantidad != null ? +body.cantidad : prev.cantidad;
@@ -327,9 +330,9 @@ export const deleteGasto = (req, res) => {
   try {
     const { id } = req.params;
     const data = safeRead(GASTOS_FILE, []);
-    if (!data.some((x) => x.id == id))
+    if (!data.some((x) => String(x.id) === String(id)))
       return res.status(404).json({ error: "No encontrado" });
-    const nuevo = data.filter((x) => x.id != id);
+    const nuevo = data.filter((x) => String(x.id) !== String(id));
     writeJSON(GASTOS_FILE, nuevo);
     res.json({ message: "Eliminado" });
   } catch {
@@ -337,11 +340,8 @@ export const deleteGasto = (req, res) => {
   }
 };
 
-/* ========= CVU (solo lectura) =========
-   - Calcula consumo unitario por insumo: promedio( suma(insumo.cantidad)/suma(cantidad producida) )
-   - Precio unitario promedio por insumo desde Compras (totalValor/cantidad)
-   - Devuelve detalle por insumo y total */
-export const getCVU = (req, res) => {
+/* ========= CVU (solo lectura) ========= */
+export const getCVU = (_req, res) => {
   try {
     const producciones = safeRead(PRODUCCIONES_FILE, []);
     const compras = safeRead(COMPRAS_FILE, []);
@@ -369,13 +369,12 @@ export const getCVU = (req, res) => {
     }
 
     // consumo unitario por insumo = sum(cant insumo)/sum(cantidad producida)
-    const totalProducido = producciones.reduce(
+    const totalProducido = (producciones || []).reduce(
       (a, p) => a + (+p.cantidad || 0),
       0
     );
     const insumoAgg = new Map(); // key: "insumo||unidad" -> cantidad total insumo
     for (const p of producciones) {
-      const lotQty = +p.cantidad || 0;
       if (!Array.isArray(p.insumos)) continue;
       for (const i of p.insumos) {
         const nombre = (i.insumo || "").toString().trim().toLowerCase();
@@ -409,8 +408,7 @@ export const getCVU = (req, res) => {
 
     const total = detalle.reduce((a, x) => a + x.total, 0);
     res.json({ detalle, total: +total.toFixed(4) });
-  } catch (e) {
+  } catch {
     res.status(500).json({ error: "No se pudo calcular el CVU" });
   }
 };
- 
