@@ -1,68 +1,300 @@
+/* --------- Variables de diseño (tema claro) --------- */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --bg: #f7f8fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #4f46e5; /* índigo */
+  --primary-2: #7c3aed; /* violeta para hover/gradiente */
+  --border: #e5e7eb;
+  --radius: 14px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  --focus: 0 0 0 3px rgba(79, 70, 229, 0.25);
+
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: var(--text);
+  background-color: var(--bg);
 
-  font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Tema oscuro opcional por preferencia del SO */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1020;
+    --card: #111827;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --primary: #8b5cf6;
+    --primary-2: #22d3ee;
+    --border: #1f2937;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+
+/* --------- Reset y layout global --------- */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow-x: hidden; /* 👉 evita scroll horizontal */
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Centrar textos por defecto (títulos, labels, celdas, etc.) */
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+label,
+th,
+td,
+.lead,
+.navbar,
+.modal-title {
+  text-align: center;
+}
+
+/* Enlaces */
 a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
 }
 a:hover {
-  color: #535bf2;
+  opacity: 0.9;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+/* Botones (aplica también sobre Bootstrap .btn) */
+button,
+.btn {
+  border-radius: var(--radius);
+  border: 0;
+  padding: 0.7em 1.15em;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+  box-shadow: var(--shadow);
+  transition: transform 0.06s ease, filter 0.2s ease;
 }
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+button:hover,
+.btn:hover {
+  filter: brightness(1.05);
 }
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
+button:active,
+.btn:active {
+  transform: translateY(1px);
 }
 button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.btn:focus {
+  outline: none;
+  box-shadow: var(--focus);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* Botones secundarios/outline de Bootstrap más suaves */
+.btn-outline-secondary,
+.btn-secondary {
+  background: transparent !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+.btn-outline-secondary:hover,
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Inputs y selects */
+input,
+select,
+textarea,
+.form-control,
+.form-select {
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  padding: 0.65rem 0.9rem;
+  box-shadow: none;
+}
+input:focus,
+select:focus,
+textarea:focus,
+.form-control:focus,
+.form-select:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: var(--focus);
+}
+
+/* Cards */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: var(--shadow);
+}
+
+/* Tablas centradas y legibles */
+.table {
+  width: 100%;
+  margin: 0 auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.table thead {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+}
+.table thead th {
+  border: 0 !important;
+  padding: 0.85rem;
+  vertical-align: middle;
+}
+.table td {
+  vertical-align: middle;
+  text-align: center;
+  padding: 0.75rem;
+  border-color: var(--border) !important;
+}
+
+/* Navbar centrada */
+.navbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--card) !important;
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.navbar-brand {
+  margin: 0 auto;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+/* Distribución equitativa de inputs dentro de filas Bootstrap en formularios */
+.card form .row > [class*="col-"],
+form .row.g-1 > [class*="col-"],
+form .row.g-2 > [class*="col-"],
+form .row.g-3 > [class*="col-"] {
+  /* cada columna crece proporcional, con mínimo cómodo */
+  flex: 1 1 260px;
+  max-width: 100%;
+}
+
+/* Contenedores con resp. horizontal asegurada */
+.container,
+.container-fluid {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* Details (ver insumos, etc.) */
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* Badges más redondeadas */
+.badge {
+  border-radius: 99px !important;
+  padding: 0.45em 0.65em !important;
+}
+
+/* --------- Tipografía & tamaños --------- */
+h1 {
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.15;
+}
+h2 {
+  font-size: clamp(1.6rem, 2.5vw, 2rem);
+}
+h3 {
+  font-size: clamp(1.3rem, 2vw, 1.6rem);
+}
+h4,
+h5,
+h6 {
+  font-size: clamp(1.05rem, 1.8vw, 1.2rem);
+}
+.lead {
+  color: var(--muted);
+}
+
+/* --------- Mobile first / Samsung A14 (≈ 412px ancho CSS) --------- */
+@media (max-width: 480px) {
+  html {
+    font-size: 15px;
   }
-  a:hover {
-    color: #747bff;
+
+  .navbar {
+    padding: 0.6rem 0.8rem !important;
   }
+  .navbar-brand {
+    font-size: 1.05rem;
+  }
+
+  .container,
+  .container-fluid {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* inputs a una sola columna para evitar scroll lateral */
+  .card form .row > [class*="col-"],
+  form .row.g-1 > [class*="col-"],
+  form .row.g-2 > [class*="col-"],
+  form .row.g-3 > [class*="col-"] {
+    flex-basis: 100%;
+  }
+
+  /* botones full width por comodidad táctil */
+  .btn,
   button {
-    background-color: #f9f9f9;
+    width: 100%;
   }
+
+  /* tablas: scroll horizontal dentro del contenedor si es necesario, no en toda la página */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* --------- Pequeñas mejoras de accesibilidad --------- */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+.visually-hidden {
+  position: absolute;
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
 }
