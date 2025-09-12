@@ -1,6 +1,6 @@
 // src/pages/Reportes.jsx
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 import {
   ResponsiveContainer,
@@ -15,7 +15,6 @@ import {
 
 function Reportes() {
   const { token } = useAuth();
-  const headers = { Authorization: `Bearer ${token}` };
 
   // Filtros
   const [from, setFrom] = useState("");
@@ -30,29 +29,31 @@ function Reportes() {
   const [detalle, setDetalle] = useState(null); // {grupo, key, title}
 
   const fetchReport = async () => {
+    if (!token) return;
     setLoading(true);
     setErr("");
     try {
       const params = {};
       if (from) params.from = from;
       if (to) params.to = to;
-      const res = await axios.get("http://localhost:4000/api/reportes", {
-        headers,
-        params,
-      });
-      setData(res.data);
+
+      const res = await axiosAuth.get("/api/reportes", { params });
+      setData(res.data || {});
     } catch (e) {
-      console.error(e);
-      setErr("No se pudieron cargar los reportes.");
+      console.error("GET /api/reportes", e);
+      setData(null);
+      setErr(
+        e?.response?.data?.message || "No se pudieron cargar los reportes."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReport();
+    if (token) fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const volver = () => setDetalle(null);
   const goto = (grupo, key, title) => setDetalle({ grupo, key, title });
@@ -94,6 +95,13 @@ function Reportes() {
                   </td>
                 </tr>
               ))}
+              {lotes.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-center">
+                    Sin datos
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -145,6 +153,13 @@ function Reportes() {
                   <td>{f.cobertura_dias}</td>
                 </tr>
               ))}
+              {filas.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center">
+                    Sin datos
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -193,6 +208,13 @@ function Reportes() {
                   <td>{p.senado_pagado ? "Sí" : "No"}</td>
                 </tr>
               ))}
+              {filas.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center">
+                    Sin datos
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -200,13 +222,12 @@ function Reportes() {
     );
   };
 
-  // === Stock seguridad vs consumo (ACTUALIZADO)
+  // === Stock seguridad vs consumo
   const TablaStockSeguridad = () => {
     const info = data?.productivos?.stock_seguridad || {};
     const consumoProm = info.consumo_promedio_quincenal_global ?? 0;
     const items = info.items || [];
 
-    // Convertimos a días y categorizamos con colores + orden
     const clasificados = items
       .map((f) => {
         const dias =
@@ -224,7 +245,6 @@ function Reportes() {
       .sort((a, b) => {
         const order = { rojo: 0, amarillo: 1, naranja: 2, verde: 3 };
         if (order[a.cat] !== order[b.cat]) return order[a.cat] - order[b.cat];
-        // dentro de cada categoría, menor cobertura primero
         return (a.cobertura_dias ?? 9999) - (b.cobertura_dias ?? 9999);
       });
 
@@ -236,7 +256,6 @@ function Reportes() {
         verde: "bg-success",
       }[cat] || "bg-secondary");
 
-    // pequeño style para naranja (Bootstrap no trae "bg-orange")
     const orangeStyle = `
       .bg-orange { background-color: #fd7e14 !important; }
     `;
@@ -292,215 +311,211 @@ function Reportes() {
     );
   };
 
-  // === Ventas (ACTUALIZADO con comparativo mensual e historial)
-const SeccionVentas = () => {
-  const econ = data?.economicos || {};
-  const objetivos = econ.objetivos || {
-    objetivo_mensual_unidades: 0,
-    objetivo_semestral_unidades: 0,
-    objetivo_anual_unidades: 0,
-  };
+  // === Ventas (con comparativo e historial)
+  const SeccionVentas = () => {
+    const econ = data?.economicos || {};
+    const objetivos = econ.objetivos || {
+      objetivo_mensual_unidades: 0,
+      objetivo_semestral_unidades: 0,
+      objetivo_anual_unidades: 0,
+    };
 
-  const reales = econ.ventas_real || { mensual: 0, semestral: 0, anual: 0 };
-  const compMensual = econ.comparativo_mensual || {
-    real: reales.mensual || 0,
-    objetivo: objetivos.objetivo_mensual_unidades || 0,
-  };
-
-  const historial = (econ.ventas_historial_mensual || []).slice().sort((a, b) => {
-    // DESC por año/mes
-    if (a.year !== b.year) return b.year - a.year;
-    return b.month - a.month;
-  });
-
-  const comp = [
-    {
-      label: "Mensual",
+    const reales = econ.ventas_real || { mensual: 0, semestral: 0, anual: 0 };
+    const compMensual = econ.comparativo_mensual || {
       real: reales.mensual || 0,
       objetivo: objetivos.objetivo_mensual_unidades || 0,
-    },
-    {
-      label: "Semestral",
-      real: reales.semestral || 0,
-      objetivo: objetivos.objetivo_semestral_unidades || 0,
-    },
-    {
-      label: "Anual",
-      real: reales.anual || 0,
-      objetivo: objetivos.objetivo_anual_unidades || 0,
-    },
-  ];
+    };
 
-  const [showChart, setShowChart] = useState(false);
-  const [showHist, setShowHist] = useState(false);
+    const historial = (econ.ventas_historial_mensual || [])
+      .slice()
+      .sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.month - a.month;
+      });
 
-  const dataset = useMemo(
-    () =>
-      comp.map((x) => ({
-        name: x.label,
-        Real: x.real,
-        Objetivo: x.objetivo,
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify(comp)]
-  );
+    const comp = [
+      {
+        label: "Mensual",
+        real: reales.mensual || 0,
+        objetivo: objetivos.objetivo_mensual_unidades || 0,
+      },
+      {
+        label: "Semestral",
+        real: reales.semestral || 0,
+        objetivo: objetivos.objetivo_semestral_unidades || 0,
+      },
+      {
+        label: "Anual",
+        real: reales.anual || 0,
+        objetivo: objetivos.objetivo_anual_unidades || 0,
+      },
+    ];
 
-  const fmtMes = (y, m) =>
-    `${String(m).padStart(2, "0")}/${String(y)}`;
+    const [showChart, setShowChart] = useState(false);
+    const [showHist, setShowHist] = useState(false);
 
-  return (
-    <div className="card p-3">
-      <div className="d-flex justify-content-between align-items-center mb-2">
-        <h5 className="mb-0">Ventas</h5>
-        <button className="btn btn-outline-secondary" onClick={volver}>
-          ← Volver
-        </button>
-      </div>
+    const dataset = useMemo(
+      () =>
+        comp.map((x) => ({
+          name: x.label,
+          Real: x.real,
+          Objetivo: x.objetivo,
+        })),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [JSON.stringify(comp)]
+    );
 
-      {/* Comparativo mensual destacado */}
-      <div className="alert alert-primary d-flex justify-content-between align-items-center">
-        <div>
-          <strong>Real vs Objetivo (Mensual):</strong>{" "}
-          <span className="fw-bold">
-            {compMensual.real}/{compMensual.objetivo}
-          </span>
+    const fmtMes = (y, m) => `${String(m).padStart(2, "0")}/${String(y)}`;
+
+    return (
+      <div className="card p-3">
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <h5 className="mb-0">Ventas</h5>
+          <button className="btn btn-outline-secondary" onClick={volver}>
+            ← Volver
+          </button>
         </div>
-        <button
-          className="btn btn-sm btn-outline-dark"
-          onClick={() => setShowHist((v) => !v)}
-        >
-          {showHist ? "Ocultar historial" : "Ver historial mensual"}
-        </button>
-      </div>
 
-      {showHist && (
+        <div className="alert alert-primary d-flex justify-content-between align-items-center">
+          <div>
+            <strong>Real vs Objetivo (Mensual):</strong>{" "}
+            <span className="fw-bold">
+              {compMensual.real}/{compMensual.objetivo}
+            </span>
+          </div>
+          <button
+            className="btn btn-sm btn-outline-dark"
+            onClick={() => setShowHist((v) => !v)}
+          >
+            {showHist ? "Ocultar historial" : "Ver historial mensual"}
+          </button>
+        </div>
+
+        {showHist && (
+          <div className="mb-3">
+            <div className="table-responsive">
+              <table className="table table-bordered align-middle">
+                <thead className="table-dark">
+                  <tr>
+                    <th>Mes</th>
+                    <th>Unidades</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historial.map((h, idx) => (
+                    <tr key={`${h.year}-${h.month}-${idx}`}>
+                      <td>{fmtMes(h.year, h.month)}</td>
+                      <td>{h.unidades}</td>
+                    </tr>
+                  ))}
+                  {historial.length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="text-center">
+                        Sin datos de historial
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="mb-3">
+          <h6 className="mb-2">🎯 Objetivos (unidades)</h6>
           <div className="table-responsive">
             <table className="table table-bordered align-middle">
-              <thead className="table-dark">
+              <thead className="table-light">
                 <tr>
-                  <th>Mes</th>
-                  <th>Unidades</th>
+                  <th>Mensual</th>
+                  <th>Semestral</th>
+                  <th>Anual</th>
                 </tr>
               </thead>
               <tbody>
-                {historial.map((h, idx) => (
-                  <tr key={`${h.year}-${h.month}-${idx}`}>
-                    <td>{fmtMes(h.year, h.month)}</td>
-                    <td>{h.unidades}</td>
-                  </tr>
-                ))}
-                {historial.length === 0 && (
-                  <tr>
-                    <td colSpan={2} className="text-center">
-                      Sin datos de historial
-                    </td>
-                  </tr>
-                )}
+                <tr>
+                  <td>{objetivos.objetivo_mensual_unidades ?? 0}</td>
+                  <td>{objetivos.objetivo_semestral_unidades ?? 0}</td>
+                  <td>{objetivos.objetivo_anual_unidades ?? 0}</td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
-      )}
 
-      {/* Cuadro: Objetivos */}
-      <div className="mb-3">
-        <h6 className="mb-2">🎯 Objetivos (unidades)</h6>
-        <div className="table-responsive">
-          <table className="table table-bordered align-middle">
-            <thead className="table-light">
-              <tr>
-                <th>Mensual</th>
-                <th>Semestral</th>
-                <th>Anual</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>{objetivos.objetivo_mensual_unidades ?? 0}</td>
-                <td>{objetivos.objetivo_semestral_unidades ?? 0}</td>
-                <td>{objetivos.objetivo_anual_unidades ?? 0}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Cuadro: Reales */}
-      <div className="mb-3">
-        <h6 className="mb-2">📈 Ventas reales (unidades)</h6>
-        <div className="table-responsive">
-          <table className="table table-bordered align-middle">
-            <thead className="table-light">
-              <tr>
-                <th>Mensual</th>
-                <th>Semestral</th>
-                <th>Anual</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>{reales.mensual ?? 0}</td>
-                <td>{reales.semestral ?? 0}</td>
-                <td>{reales.anual ?? 0}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Cuadro: Comparativo (las tres vistas) */}
-      <div className="mb-3">
-        <h6 className="mb-2">⚖️ Comparativo real vs objetivo</h6>
-        <div className="table-responsive">
-          <table className="table table-bordered align-middle">
-            <thead className="table-light">
-              <tr>
-                <th>Mensual</th>
-                <th>Semestral</th>
-                <th>Anual</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {comp.map((x) => (
-                  <td key={x.label}>
-                    <strong>
-                      {x.real}/{x.objetivo}
-                    </strong>
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <button
-          className="btn btn-outline-primary"
-          onClick={() => setShowChart((v) => !v)}
-        >
-          {showChart ? "Ocultar gráfico" : "Ver gráfico"}
-        </button>
-
-        {showChart && (
-          <div className="mt-3" style={{ width: "100%", height: 340 }}>
-            <ResponsiveContainer>
-              <BarChart data={dataset}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="Real" />
-                <Bar dataKey="Objetivo" />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="mb-3">
+          <h6 className="mb-2">📈 Ventas reales (unidades)</h6>
+          <div className="table-responsive">
+            <table className="table table-bordered align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th>Mensual</th>
+                  <th>Semestral</th>
+                  <th>Anual</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{reales.mensual ?? 0}</td>
+                  <td>{reales.semestral ?? 0}</td>
+                  <td>{reales.anual ?? 0}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+
+        <div className="mb-3">
+          <h6 className="mb-2">⚖️ Comparativo real vs objetivo</h6>
+          <div className="table-responsive">
+            <table className="table table-bordered align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th>Mensual</th>
+                  <th>Semestral</th>
+                  <th>Anual</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {comp.map((x) => (
+                    <td key={x.label}>
+                      <strong>
+                        {x.real}/{x.objetivo}
+                      </strong>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <button
+            className="btn btn-outline-primary"
+            onClick={() => setShowChart((v) => !v)}
+          >
+            {showChart ? "Ocultar gráfico" : "Ver gráfico"}
+          </button>
+
+          {showChart && (
+            <div className="mt-3" style={{ width: "100%", height: 340 }}>
+              <ResponsiveContainer>
+                <BarChart data={dataset}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Real" />
+                  <Bar dataKey="Objetivo" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   /* ======= UI ======= */
 

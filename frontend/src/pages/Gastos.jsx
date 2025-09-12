@@ -1,36 +1,30 @@
-import { useState, useEffect } from "react";
+// src/pages/Gastos.jsx
+import { useEffect, useState } from "react";
 import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
-function Gastos() {
+const fmtCurrency = (n) => {
+  const val = Number(n ?? 0);
+  if (Number.isNaN(val)) return "$0";
+  return val.toLocaleString("es-AR", { style: "currency", currency: "ARS" });
+};
+
+export default function Gastos() {
   const { token } = useAuth();
 
   const [gastos, setGastos] = useState([]);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
+
   const [form, setForm] = useState({
     concepto: "",
     categoria: "",
     monto: "",
     fecha: "",
-    usuario: "admin",
+    usuario: "admin", // si tu backend lo ignora, no molesta
   });
-
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [mensajeExito, setMensajeExito] = useState("");
-  const [editId, setEditId] = useState(null);
-
-  const fetchGastos = async () => {
-    try {
-      const res = await axiosAuth.get("/api/gastos");
-      setGastos(res.data || []);
-    } catch (err) {
-      console.error("Error al obtener gastos", err);
-    }
-  };
-
-  useEffect(() => {
-    if (token) fetchGastos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
 
   const resetForm = () => {
     setForm({
@@ -43,104 +37,152 @@ function Gastos() {
     setEditId(null);
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "monto" && Number(value) < 0) return;
-    setForm({ ...form, [name]: value });
+  const fetchGastos = async () => {
+    try {
+      const { data } = await axiosAuth.get("/api/gastos");
+      setGastos(Array.isArray(data) ? data : []);
+      setError("");
+    } catch (err) {
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 401
+            ? "Sesión inválida. Iniciá sesión nuevamente."
+            : status === 403
+            ? "Acceso denegado."
+            : "No se pudieron cargar los gastos.")
+      );
+      setGastos([]);
+    }
   };
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    if (token) fetchGastos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "monto") {
+      // bloquear negativos
+      if (value !== "" && Number(value) < 0) return;
+    }
+    setForm((s) => ({ ...s, [name]: value }));
+  };
+
+  const onSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setOk("");
 
     const payload = {
       ...form,
-      monto: form.monto === "" ? "" : Number(form.monto),
+      monto:
+        form.monto === "" || form.monto === null
+          ? null
+          : Number.parseFloat(form.monto),
+      fecha: form.fecha || null,
     };
+
+    if (payload.monto !== null && Number.isNaN(payload.monto)) {
+      return setError("El monto debe ser un número válido.");
+    }
 
     try {
       if (editId) {
         await axiosAuth.put(`/api/gastos/${editId}`, payload);
-        setMensajeExito("✅ Gasto actualizado con éxito");
+        setOk("✅ Gasto actualizado con éxito");
       } else {
         await axiosAuth.post("/api/gastos", payload);
-        setMensajeExito("✅ Gasto registrado con éxito");
+        setOk("✅ Gasto registrado con éxito");
       }
-
       await fetchGastos();
       resetForm();
-      setMostrarFormulario(false);
-      setTimeout(() => setMensajeExito(""), 3000);
+      setFormOpen(false);
+      setTimeout(() => setOk(""), 2500);
     } catch (err) {
-      console.error("Error al guardar/actualizar gasto", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 403
+            ? "Acceso denegado (solo admin / empresa inválida)."
+            : "Error al guardar el gasto.")
+      );
     }
   };
 
-  const handleEdit = (g) => {
+  const onEdit = (g) => {
     setForm({
       concepto: g.concepto || "",
       categoria: g.categoria || "",
       monto: g.monto ?? "",
-      fecha: g.fecha ? g.fecha.slice(0, 10) : "",
+      fecha: g.fecha ? String(g.fecha).slice(0, 10) : "",
       usuario: g.usuario || "admin",
     });
     setEditId(g.id);
-    setMostrarFormulario(true);
+    setFormOpen(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = async (id) => {
+  const onDelete = async (id) => {
     if (!window.confirm("¿Eliminar este gasto?")) return;
     try {
       await axiosAuth.delete(`/api/gastos/${id}`);
       fetchGastos();
     } catch (err) {
-      console.error("Error al eliminar gasto", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 403
+            ? "Acceso denegado (solo admin / empresa inválida)."
+            : "Error al eliminar el gasto.")
+      );
     }
   };
 
   return (
     <div>
-      <h2 className="mb-4">Gastos</h2>
+      <h2 className="mb-3 text-center">Gastos</h2>
 
-      {!mostrarFormulario && (
-        <button
-          className="btn btn-primary mb-3"
-          onClick={() => {
-            resetForm();
-            setMostrarFormulario(true);
-          }}
-        >
-          ➕ Agregar gasto
-        </button>
+      {error && <div className="alert alert-danger">{error}</div>}
+      {ok && <div className="alert alert-success">{ok}</div>}
+
+      {!formOpen && (
+        <div className="mb-3 d-flex justify-content-end">
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              resetForm();
+              setFormOpen(true);
+            }}
+          >
+            ➕ Agregar gasto
+          </button>
+        </div>
       )}
 
-      {mensajeExito && (
-        <div className="alert alert-success">{mensajeExito}</div>
-      )}
-
-      {mostrarFormulario && (
+      {formOpen && (
         <div className="card p-3 mb-4">
-          <form onSubmit={handleSubmit}>
-            <div className="mb-3">
-              <label>Concepto</label>
+          <form onSubmit={onSubmit} className="row g-2">
+            <div className="col-md-4">
+              <label className="form-label">Concepto</label>
               <input
-                type="text"
                 name="concepto"
                 className="form-control"
                 value={form.concepto}
-                onChange={handleChange}
+                onChange={onChange}
                 required
                 placeholder="Ej: Yerba, agua, bolsas"
               />
             </div>
 
-            <div className="mb-3">
-              <label>Categoría</label>
+            <div className="col-md-3">
+              <label className="form-label">Categoría</label>
               <select
                 name="categoria"
-                className="form-control"
+                className="form-select"
                 value={form.categoria}
-                onChange={handleChange}
+                onChange={onChange}
                 required
               >
                 <option value="">Seleccionar</option>
@@ -151,35 +193,36 @@ function Gastos() {
               </select>
             </div>
 
-            <div className="mb-3">
-              <label>Monto</label>
+            <div className="col-md-2">
+              <label className="form-label">Monto</label>
               <input
                 type="number"
+                step="0.01"
+                min="0"
                 name="monto"
                 className="form-control"
                 value={form.monto}
-                onChange={handleChange}
+                onChange={onChange}
                 required
                 placeholder="Ej: 2500"
-                step="0.01"
-                min="0"
               />
             </div>
 
-            <div className="mb-3">
-              <label>Fecha</label>
+            <div className="col-md-3">
+              <label className="form-label">Fecha</label>
               <input
                 type="date"
                 name="fecha"
                 className="form-control"
                 value={form.fecha}
-                onChange={handleChange}
+                onChange={onChange}
               />
             </div>
 
+            {/* Por compatibilidad si tu backend lo usa */}
             <input type="hidden" name="usuario" value="admin" />
 
-            <div className="d-flex gap-2">
+            <div className="col-12 d-flex gap-2">
               <button type="submit" className="btn btn-success">
                 {editId ? "Actualizar" : "Guardar gasto"}
               </button>
@@ -188,7 +231,7 @@ function Gastos() {
                 className="btn btn-secondary"
                 onClick={() => {
                   resetForm();
-                  setMostrarFormulario(false);
+                  setFormOpen(false);
                 }}
               >
                 Cancelar
@@ -198,10 +241,10 @@ function Gastos() {
         </div>
       )}
 
-      <h5>Gastos registrados</h5>
+      <h5 className="mt-2 text-center">Gastos registrados</h5>
       <div className="table-responsive">
         <table className="table table-striped table-bordered">
-          <thead>
+          <thead className="table-dark">
             <tr>
               <th>Fecha</th>
               <th>Concepto</th>
@@ -212,27 +255,25 @@ function Gastos() {
             </tr>
           </thead>
           <tbody>
-            {gastos.map((gasto) => (
-              <tr key={gasto.id}>
+            {gastos.map((g) => (
+              <tr key={g.id}>
                 <td>
-                  {gasto.fecha
-                    ? new Date(gasto.fecha).toLocaleDateString()
-                    : "-"}
+                  {g.fecha ? new Date(g.fecha).toLocaleDateString() : "-"}
                 </td>
-                <td>{gasto.concepto}</td>
-                <td>{gasto.categoria}</td>
-                <td>${Number(gasto.monto || 0).toLocaleString()}</td>
-                <td>{gasto.usuario || "admin"}</td>
+                <td>{g.concepto}</td>
+                <td>{g.categoria}</td>
+                <td>{fmtCurrency(g.monto)}</td>
+                <td>{g.usuario || "admin"}</td>
                 <td>
                   <button
                     className="btn btn-sm btn-warning me-2"
-                    onClick={() => handleEdit(gasto)}
+                    onClick={() => onEdit(g)}
                   >
                     Editar
                   </button>
                   <button
                     className="btn btn-sm btn-danger"
-                    onClick={() => handleDelete(gasto.id)}
+                    onClick={() => onDelete(g.id)}
                   >
                     Eliminar
                   </button>
@@ -252,5 +293,3 @@ function Gastos() {
     </div>
   );
 }
-
-export default Gastos;

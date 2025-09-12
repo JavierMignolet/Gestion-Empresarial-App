@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "fecha": "2025-09-09",
+    "descripcion": "amasadora",
+    "tipo": "inversion",
+    "cantidad": 1,
+    "precio_unitario": 2500000,
+    "total": 2500000
+  },
+  {
+    "id": 2,
+    "fecha": "2025-09-09",
+    "descripcion": "sobadora",
+    "tipo": "inversion",
+    "cantidad": 1,
+    "precio_unitario": 3000000,
+    "total": 3000000
+  }
+]

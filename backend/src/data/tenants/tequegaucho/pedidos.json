@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": 1,
+    "fecha_pedido": "2025-09-09T18:14:48.816Z",
+    "fecha_estimada_entrega": null,
+    "cliente_id": "1",
+    "cliente_nombre": "javier",
+    "producto_id": "2",
+    "producto_nombre": "Tequeño",
+    "cantidad": 25,
+    "precio_unitario": 4000,
+    "precio_total": 100000,
+    "metodo_pago": "contado",
+    "estado": "pendiente/pagado",
+    "fecha_entrega": null,
+    "venta_registrada": true,
+    "stock_descontado": false
+  }
+]

@@ -9,5 +9,27 @@
     "condicion_iva": "Responsable Inscripto",
     "createdAt": "2025-09-08T16:37:32.195Z",
     "updatedAt": "2025-09-08T16:37:32.206Z"
+  },
+  {
+    "id": 2,
+    "nombre": "Algoritmos de JavaScript y Estructuras de Datos",
+    "cuit_dni": "2022555423",
+    "direccion": "",
+    "telefono": "",
+    "email": "",
+    "condicion_iva": "Responsable Inscripto",
+    "createdAt": "2025-09-09T19:57:31.498Z",
+    "updatedAt": "2025-09-09T19:57:31.498Z"
+  },
+  {
+    "id": 3,
+    "nombre": "claro",
+    "cuit_dni": "",
+    "direccion": "",
+    "telefono": "",
+    "email": "",
+    "condicion_iva": "responsable inscripto",
+    "createdAt": "2025-09-09T19:58:21.802Z",
+    "updatedAt": "2025-09-09T19:58:21.802Z"
   }
 ]

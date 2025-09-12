@@ -1,10 +1,10 @@
 // src/pages/Ventas.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import axiosAuth from "../utils/axiosAuth"; // 👈 usar instancia
-import { useAuth } from "../context/AuthContext"; // solo si usas role o username en UI
+import axiosAuth from "../utils/axiosAuth";
+import { useAuth } from "../context/AuthContext"; // opcional: role/username en UI
 
 function Ventas() {
-  const { role } = useAuth(); // 👈 opcional (si no lo usas, podés quitarlo)
+  const { role } = useAuth(); // (si no lo usás, podés quitarlo)
 
   // ======== Estado principal ========
   const [ventas, setVentas] = useState([]);
@@ -56,7 +56,7 @@ function Ventas() {
       condicion_iva: "",
     });
 
-  // ======== Fetch (usando axiosAuth) ========
+  // ======== Fetch (axiosAuth) ========
   const fetchVentas = async () => {
     const res = await axiosAuth.get("/api/ventas");
     setVentas(res.data || []);
@@ -73,10 +73,14 @@ function Ventas() {
   };
 
   useEffect(() => {
-    fetchVentas();
-    fetchClientes();
-    fetchProductos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Evita golpear API antes de estar logueado y tener headers listos
+    (async () => {
+      try {
+        await Promise.all([fetchVentas(), fetchClientes(), fetchProductos()]);
+      } catch (e) {
+        console.error("ventas init", e);
+      }
+    })();
   }, []);
 
   // ======== Maps rápidos ========
@@ -97,7 +101,7 @@ function Ventas() {
     const q = parseFloat(cantidad);
     const pu = parseFloat(precio);
     if (isNaN(q) || isNaN(pu)) return 0;
-    return q * pu;
+    return +(q * pu).toFixed(2);
   };
 
   const displayDate = (iso) => {
@@ -107,14 +111,14 @@ function Ventas() {
     return d.toLocaleDateString();
   };
 
-  // ======== Handlers Form Venta (genérico) ========
+  // ======== Handlers Form Venta ========
   const handleChange = (e) => {
     const next = { ...form, [e.target.name]: e.target.value };
     next.total = calcTotal(next.cantidad, next.precio_unitario);
     setForm(next);
   };
 
-  // ======== Cliente: ID <-> Nombre sincronizados ========
+  // Cliente: ID <-> Nombre
   const onChangeClienteId = (e) => {
     const id = e.target.value;
     const c = clientesById.get(String(id));
@@ -137,7 +141,7 @@ function Ventas() {
     }));
   };
 
-  // ======== Producto: ID <-> Nombre sincronizados + precio ========
+  // Producto: ID <-> Nombre + precio
   const precioDesdeProducto = (p, tipo) => {
     if (!p) return "";
     switch (tipo) {
@@ -214,7 +218,7 @@ function Ventas() {
     }
   };
 
-  // ======== Guardar/Editar/Eliminar (axiosAuth) ========
+  // ======== Guardar/Editar/Eliminar ========
   const handleSubmit = async () => {
     try {
       if (!form.cliente_id || !form.producto_id) {
@@ -222,13 +226,16 @@ function Ventas() {
         return;
       }
 
+      const cantidad = +form.cantidad || 0;
+      const pu = +form.precio_unitario || 0;
+
       const payload = {
-        fecha: form.fecha ? form.fecha : new Date().toISOString(),
+        fecha: form.fecha || new Date().toISOString().slice(0, 10),
         cliente_id: form.cliente_id,
         producto_id: form.producto_id,
-        cantidad: form.cantidad,
-        precio_unitario: form.precio_unitario,
-        total: calcTotal(form.cantidad, form.precio_unitario),
+        cantidad,
+        precio_unitario: pu,
+        total: +(cantidad * pu).toFixed(2),
       };
 
       if (editId) {
@@ -257,6 +264,7 @@ function Ventas() {
       setTimeout(() => setMensaje(""), 2200);
     } catch (err) {
       console.error("Error al guardar/editar venta:", err);
+      alert("No se pudo guardar la venta.");
     }
   };
 
@@ -325,7 +333,6 @@ function Ventas() {
       const res = await axiosAuth.post("/api/clientes", nuevoCliente);
       const creado = res.data; // {id, ...}
       await fetchClientes();
-      // Autoseleccionar
       setForm((prev) => ({
         ...prev,
         cliente_id: creado.id,
@@ -369,7 +376,6 @@ function Ventas() {
             onClick={() => {
               setFormVisible((s) => !s);
               if (!formVisible) {
-                // reseteo al abrir
                 setEditId(null);
                 setTipoPrecio("consumidor");
                 setPrecioDiferenciado("");
@@ -499,65 +505,41 @@ function Ventas() {
             <div className="col-12">
               <label className="form-label me-3">Precio:</label>
               <div className="d-flex flex-wrap gap-3 align-items-center">
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="radio"
-                    name="tipoPrecio"
-                    id="precioMayorista"
-                    value="mayorista"
-                    checked={tipoPrecio === "mayorista"}
-                    onChange={onChangeTipoPrecio}
-                  />
-                  <label className="form-check-label" htmlFor="precioMayorista">
-                    Mayorista
-                  </label>
-                </div>
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="radio"
-                    name="tipoPrecio"
-                    id="precioMinorista"
-                    value="minorista"
-                    checked={tipoPrecio === "minorista"}
-                    onChange={onChangeTipoPrecio}
-                  />
-                  <label className="form-check-label" htmlFor="precioMinorista">
-                    Minorista
-                  </label>
-                </div>
-                <div className="form-check">
-                  <input
-                    className="form-check-input"
-                    type="radio"
-                    name="tipoPrecio"
-                    id="precioConsumidor"
-                    value="consumidor"
-                    checked={tipoPrecio === "consumidor"}
-                    onChange={onChangeTipoPrecio}
-                  />
-                  <label
-                    className="form-check-label"
-                    htmlFor="precioConsumidor"
-                  >
-                    Consumidor
-                  </label>
-                </div>
+                {[
+                  ["mayorista", "Mayorista"],
+                  ["minorista", "Minorista"],
+                  ["consumidor", "Consumidor"],
+                ].map(([val, label]) => (
+                  <div className="form-check" key={val}>
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="tipoPrecio"
+                      id={`precio_${val}`}
+                      value={val}
+                      checked={tipoPrecio === val}
+                      onChange={onChangeTipoPrecio}
+                    />
+                    <label
+                      className="form-check-label"
+                      htmlFor={`precio_${val}`}
+                    >
+                      {label}
+                    </label>
+                  </div>
+                ))}
+
                 <div className="form-check d-flex align-items-center">
                   <input
                     className="form-check-input"
                     type="radio"
                     name="tipoPrecio"
-                    id="precioDiferenciado"
+                    id="precio_dif"
                     value="diferenciado"
                     checked={tipoPrecio === "diferenciado"}
                     onChange={onChangeTipoPrecio}
                   />
-                  <label
-                    className="form-check-label me-2"
-                    htmlFor="precioDiferenciado"
-                  >
+                  <label className="form-check-label me-2" htmlFor="precio_dif">
                     Diferenciado
                   </label>
                   <input

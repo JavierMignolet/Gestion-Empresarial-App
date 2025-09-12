@@ -1,11 +1,10 @@
-//Pagos.jsx
+// src/pages/Pagos.jsx
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Pagos() {
   const { token } = useAuth();
-  const headers = { Authorization: `Bearer ${token}` };
 
   const [pagos, setPagos] = useState([]);
   const [form, setForm] = useState({
@@ -18,66 +17,30 @@ function Pagos() {
 
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
+  const [error, setError] = useState("");
   const [editandoId, setEditandoId] = useState(null);
 
   const fetchPagos = async () => {
     try {
-      const res = await axios.get("http://localhost:4000/api/pagos", {
-        headers,
-      });
-      setPagos(res.data);
+      const res = await axiosAuth.get("/api/pagos");
+      setPagos(Array.isArray(res.data) ? res.data : []);
+      setError("");
     } catch (err) {
-      console.error("Error al obtener pagos", err);
+      console.error("GET /api/pagos", err);
+      setError(
+        err?.response?.data?.message || "No se pudieron cargar los pagos."
+      );
+      setPagos([]);
     }
   };
 
   useEffect(() => {
-    fetchPagos();
-  }, []);
+    if (token) fetchPagos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editandoId) {
-        await axios.put(`http://localhost:4000/api/pagos/${editandoId}`, form, {
-          headers,
-        });
-        setMensajeExito("✅ Pago actualizado con éxito");
-      } else {
-        await axios.post("http://localhost:4000/api/pagos", form, { headers });
-        setMensajeExito("✅ Pago registrado con éxito");
-      }
-      fetchPagos();
-      cancelarFormulario();
-    } catch (err) {
-      console.error("Error al guardar pago", err);
-    }
-  };
-
-  const handleEditar = (pago) => {
-    setForm({
-      concepto: pago.concepto,
-      categoria: pago.categoria,
-      monto: pago.monto,
-      fecha: pago.fecha.split("T")[0],
-      usuario: pago.usuario || "admin",
-    });
-    setEditandoId(pago.id);
-    setMostrarFormulario(true);
-  };
-
-  const handleEliminar = async (id) => {
-    if (!window.confirm("¿Eliminar este pago?")) return;
-    try {
-      await axios.delete(`http://localhost:4000/api/pagos/${id}`, { headers });
-      fetchPagos();
-    } catch (err) {
-      console.error("Error al eliminar pago", err);
-    }
   };
 
   const cancelarFormulario = () => {
@@ -93,9 +56,63 @@ function Pagos() {
     setTimeout(() => setMensajeExito(""), 3000);
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const payload = {
+        ...form,
+        monto: form.monto === "" ? "" : Number(form.monto),
+      };
+
+      if (editandoId) {
+        await axiosAuth.put(`/api/pagos/${editandoId}`, payload);
+        setMensajeExito("✅ Pago actualizado con éxito");
+      } else {
+        await axiosAuth.post("/api/pagos", payload);
+        setMensajeExito("✅ Pago registrado con éxito");
+      }
+
+      await fetchPagos();
+      cancelarFormulario();
+    } catch (err) {
+      console.error("SAVE pago", err);
+      setError(err?.response?.data?.message || "Error al guardar el pago.");
+    }
+  };
+
+  const handleEditar = (pago) => {
+    setForm({
+      concepto: pago.concepto || "",
+      categoria: pago.categoria || "",
+      monto: pago.monto ?? "",
+      fecha: pago.fecha ? String(pago.fecha).slice(0, 10) : "",
+      usuario: pago.usuario || "admin",
+    });
+    setEditandoId(pago.id);
+    setMostrarFormulario(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleEliminar = async (id) => {
+    if (!window.confirm("¿Eliminar este pago?")) return;
+    try {
+      await axiosAuth.delete(`/api/pagos/${id}`);
+      fetchPagos();
+    } catch (err) {
+      console.error("DELETE pago", err);
+      setError(err?.response?.data?.message || "Error al eliminar el pago.");
+    }
+  };
+
   return (
     <div>
       <h2 className="mb-4">Pagos</h2>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+      {mensajeExito && (
+        <div className="alert alert-success">{mensajeExito}</div>
+      )}
 
       {!mostrarFormulario && (
         <button
@@ -104,10 +121,6 @@ function Pagos() {
         >
           ➕ Agregar pago
         </button>
-      )}
-
-      {mensajeExito && (
-        <div className="alert alert-success">{mensajeExito}</div>
       )}
 
       {mostrarFormulario && (
@@ -154,6 +167,8 @@ function Pagos() {
                 onChange={handleChange}
                 required
                 placeholder="Ej: 150000"
+                step="0.01"
+                min="0"
               />
             </div>
 
@@ -187,43 +202,54 @@ function Pagos() {
       )}
 
       <h5>Pagos registrados</h5>
-      <table className="table table-bordered">
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Concepto</th>
-            <th>Categoría</th>
-            <th>Monto</th>
-            <th>Usuario</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pagos.map((pago) => (
-            <tr key={pago.id}>
-              <td>{new Date(pago.fecha).toLocaleDateString()}</td>
-              <td>{pago.concepto}</td>
-              <td>{pago.categoria}</td>
-              <td>${pago.monto.toLocaleString()}</td>
-              <td>{pago.usuario || "admin"}</td>
-              <td>
-                <button
-                  className="btn btn-warning btn-sm me-2"
-                  onClick={() => handleEditar(pago)}
-                >
-                  ✏️ Editar
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => handleEliminar(pago.id)}
-                >
-                  🗑️ Eliminar
-                </button>
-              </td>
+      <div className="table-responsive">
+        <table className="table table-bordered table-striped">
+          <thead className="table-dark">
+            <tr>
+              <th>Fecha</th>
+              <th>Concepto</th>
+              <th>Categoría</th>
+              <th>Monto</th>
+              <th>Usuario</th>
+              <th>Acciones</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(pagos || []).map((pago) => (
+              <tr key={pago.id}>
+                <td>
+                  {pago.fecha ? new Date(pago.fecha).toLocaleDateString() : "-"}
+                </td>
+                <td>{pago.concepto}</td>
+                <td>{pago.categoria}</td>
+                <td>${Number(pago.monto || 0).toLocaleString()}</td>
+                <td>{pago.usuario || "admin"}</td>
+                <td className="text-nowrap">
+                  <button
+                    className="btn btn-warning btn-sm me-2"
+                    onClick={() => handleEditar(pago)}
+                  >
+                    ✏️ Editar
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleEliminar(pago.id)}
+                  >
+                    🗑️ Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {pagos.length === 0 && (
+              <tr>
+                <td colSpan="6" className="text-center">
+                  No hay pagos cargados.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

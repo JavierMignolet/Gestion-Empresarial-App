@@ -1,23 +1,26 @@
 // src/pages/Produccion.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Produccion() {
   const { token } = useAuth();
-  const headers = { Authorization: `Bearer ${token}` };
 
   const [producciones, setProducciones] = useState([]);
   const [productos, setProductos] = useState([]);
   const [insumosResumen, setInsumosResumen] = useState([]);
+
   const [formVisible, setFormVisible] = useState(false);
   const [editId, setEditId] = useState(null);
 
+  const [error, setError] = useState("");
+  const [okMsg, setOkMsg] = useState("");
+
   const [form, setForm] = useState({
     fecha: "",
-    producto_id: "", // 👈 NUEVO
-    producto: "", // nombre del producto (compatibilidad)
-    nombre: "", // idem (dejamos igual por compatibilidad con tus datos)
+    producto_id: "",
+    producto: "",
+    nombre: "",
     lote: "",
     cantidad: "",
     insumos: [],
@@ -31,36 +34,49 @@ function Produccion() {
 
   // ------- FETCHERS -------
   const fetchProducciones = async () => {
-    const res = await axios.get("http://localhost:4000/api/produccion", {
-      headers,
-    });
-    // orden opcional por fecha desc para que veas lo último arriba en el resumen
-    const ordenadas = [...res.data].sort(
-      (a, b) => new Date(b.fecha) - new Date(a.fecha)
-    );
-    setProducciones(ordenadas);
+    try {
+      const res = await axiosAuth.get("/api/produccion");
+      const arr = Array.isArray(res.data) ? res.data : [];
+      // ordenar por fecha desc
+      const ordenadas = [...arr].sort((a, b) => {
+        const da = new Date(a.fecha || a.createdAt || 0).getTime();
+        const db = new Date(b.fecha || b.createdAt || 0).getTime();
+        return db - da;
+      });
+      setProducciones(ordenadas);
+      setError("");
+    } catch (err) {
+      console.error("GET /api/produccion", err);
+      setError(err?.response?.data?.message || "No se pudo cargar Producción.");
+      setProducciones([]);
+    }
   };
 
   const fetchProductos = async () => {
-    const res = await axios.get("http://localhost:4000/api/productos", {
-      headers,
-    });
-    setProductos(res.data || []);
+    try {
+      const res = await axiosAuth.get("/api/productos");
+      setProductos(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("GET /api/productos", err);
+    }
   };
 
   const fetchResumenInsumos = async () => {
-    const res = await axios.get("http://localhost:4000/api/insumos", {
-      headers,
-    });
-    setInsumosResumen(res.data || []);
+    try {
+      const res = await axiosAuth.get("/api/insumos");
+      setInsumosResumen(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("GET /api/insumos", err);
+    }
   };
 
   useEffect(() => {
+    if (!token) return;
     fetchProducciones();
     fetchProductos();
     fetchResumenInsumos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   // ------- AUTOCOMPLETADO PRODUCTOS -------
   const onChangeProductoId = (e) => {
@@ -81,7 +97,7 @@ function Produccion() {
   const onChangeProductoNombre = (e) => {
     const value = e.target.value;
     const prod = productos.find(
-      (p) => p.nombre.toLowerCase() === value.toLowerCase()
+      (p) => (p.nombre || "").toLowerCase() === value.toLowerCase()
     );
     if (prod) {
       setForm((prev) => ({
@@ -99,9 +115,9 @@ function Produccion() {
   const agregarInsumo = () => {
     if (
       nuevoInsumo.insumo &&
-      nuevoInsumo.cantidad &&
-      !isNaN(parseFloat(nuevoInsumo.cantidad)) &&
-      nuevoInsumo.unidad
+      nuevoInsumo.unidad &&
+      nuevoInsumo.cantidad !== "" &&
+      !isNaN(parseFloat(nuevoInsumo.cantidad))
     ) {
       setForm((prev) => ({
         ...prev,
@@ -120,32 +136,27 @@ function Produccion() {
 
   // ------- GUARDAR / EDITAR / ELIMINAR -------
   const guardarProduccion = async () => {
+    setError("");
+    setOkMsg("");
     try {
       const data = {
         ...form,
-        cantidad: parseFloat(form.cantidad),
-        // backend actual ignora producto_id (lo dejamos por si luego lo usas),
-        // pero enviamos producto y nombre (ambos = nombre seleccionado) por compatibilidad.
+        cantidad: form.cantidad === "" ? "" : parseFloat(form.cantidad),
+        // por compatibilidad con tu backend actual:
         producto: form.producto || form.nombre,
         nombre: form.nombre || form.producto,
-        insumos: form.insumos.map((i) => ({
+        insumos: (form.insumos || []).map((i) => ({
           ...i,
-          cantidad: parseFloat(i.cantidad),
+          cantidad: i.cantidad === "" ? "" : parseFloat(i.cantidad),
         })),
       };
 
       if (editId) {
-        await axios.put(
-          `http://localhost:4000/api/produccion/${editId}`,
-          data,
-          {
-            headers,
-          }
-        );
+        await axiosAuth.put(`/api/produccion/${editId}`, data);
+        setOkMsg("✅ Producción actualizada");
       } else {
-        await axios.post("http://localhost:4000/api/produccion", data, {
-          headers,
-        });
+        await axiosAuth.post("/api/produccion", data);
+        setOkMsg("✅ Producción guardada");
       }
 
       // reset
@@ -161,23 +172,23 @@ function Produccion() {
       setEditId(null);
       setFormVisible(false);
       await fetchProducciones();
+      setTimeout(() => setOkMsg(""), 2200);
     } catch (error) {
-      console.error("❌ Error al guardar producción:", error);
-      if (error.response) {
-        console.error("Status:", error.response.status);
-        console.error("Data:", error.response.data);
-      }
+      console.error("❌ SAVE /api/produccion", error);
+      setError(
+        error?.response?.data?.message || "No se pudo guardar la Producción."
+      );
     }
   };
 
   const handleEditar = (p) => {
-    // busco producto por nombre para recuperar su id (si existe)
     const prod = productos.find(
       (x) =>
-        x.nombre.toLowerCase() === String(p.producto || p.nombre).toLowerCase()
+        (x.nombre || "").toLowerCase() ===
+        String(p.producto || p.nombre || "").toLowerCase()
     );
     setForm({
-      fecha: p.fecha || "",
+      fecha: (p.fecha || "").substring(0, 10),
       producto_id: prod?.id ?? "",
       producto: p.producto || prod?.nombre || "",
       nombre: p.nombre || p.producto || prod?.nombre || "",
@@ -191,15 +202,13 @@ function Produccion() {
   };
 
   const handleEliminar = async (id) => {
-    if (window.confirm("¿Eliminar esta producción?")) {
-      try {
-        await axios.delete(`http://localhost:4000/api/produccion/${id}`, {
-          headers,
-        });
-        await fetchProducciones();
-      } catch (err) {
-        console.error("❌ Error al eliminar producción:", err);
-      }
+    if (!window.confirm("¿Eliminar esta producción?")) return;
+    try {
+      await axiosAuth.delete(`/api/produccion/${id}`);
+      await fetchProducciones();
+    } catch (err) {
+      console.error("❌ DELETE /api/produccion", err);
+      setError(err?.response?.data?.message || "No se pudo eliminar.");
     }
   };
 
@@ -220,9 +229,18 @@ function Produccion() {
     }, 0);
   };
 
+  const fmtDate = (d) => {
+    if (!d) return "-";
+    const dd = new Date(d);
+    return isNaN(dd.getTime()) ? d : dd.toLocaleDateString();
+  };
+
   return (
     <div>
       <h3>🏭 Producción</h3>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+      {okMsg && <div className="alert alert-success">{okMsg}</div>}
 
       <button
         className="btn btn-primary mb-3"
@@ -259,7 +277,7 @@ function Produccion() {
               />
             </div>
 
-            {/* ID PRODUCTO (autocomplete por id) */}
+            {/* ID PRODUCTO */}
             <div className="col-md-2">
               <input
                 list="dlProductosIds"
@@ -278,7 +296,7 @@ function Produccion() {
               </datalist>
             </div>
 
-            {/* NOMBRE PRODUCTO (autocomplete por nombre) */}
+            {/* NOMBRE PRODUCTO */}
             <div className="col-md-3">
               <input
                 list="dlProductosNombres"
@@ -297,7 +315,7 @@ function Produccion() {
               </datalist>
             </div>
 
-            {/* NOMBRE (campo espejo para compatibilidad) */}
+            {/* NOMBRE (compat) */}
             <div className="col-md-2">
               <input
                 name="nombre"
@@ -414,18 +432,18 @@ function Produccion() {
               <th>Costo total</th>
               <th>Costo unitario</th>
               <th>Detalles</th>
-              <th>Acciones</th> {/* 👈 NUEVO */}
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {producciones.map((p) => {
+            {(producciones || []).map((p) => {
               const costoTotal = calcularCostoTotal(p);
-              const costoUnitario = (
-                costoTotal / (parseFloat(p.cantidad) || 1)
-              ).toFixed(2);
+              const cu = (costoTotal / (parseFloat(p.cantidad) || 1)).toFixed(
+                2
+              );
               return (
                 <tr key={p.id}>
-                  <td>{p.fecha}</td>
+                  <td>{fmtDate(p.fecha)}</td>
                   <td>{p.producto || p.nombre}</td>
                   <td>{p.lote}</td>
                   <td>
@@ -435,7 +453,7 @@ function Produccion() {
                     )}
                   </td>
                   <td>${costoTotal.toFixed(2)}</td>
-                  <td>${costoUnitario}</td>
+                  <td>${cu}</td>
                   <td>
                     <details>
                       <summary>Ver insumos</summary>
@@ -448,7 +466,7 @@ function Produccion() {
                       </ul>
                     </details>
                   </td>
-                  <td>
+                  <td className="text-nowrap">
                     <button
                       className="btn btn-sm btn-warning me-2"
                       onClick={() => handleEditar(p)}
@@ -465,6 +483,13 @@ function Produccion() {
                 </tr>
               );
             })}
+            {producciones.length === 0 && (
+              <tr>
+                <td colSpan="8" className="text-center">
+                  Sin registros.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

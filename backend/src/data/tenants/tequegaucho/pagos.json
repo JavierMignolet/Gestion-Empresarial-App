@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": 1757447969558,
+    "concepto": "Sueldo Javier Junio",
+    "categoria": "sueldos",
+    "monto": 280000,
+    "fecha": "2025-09-15",
+    "usuario": "admin"
+  }
+]

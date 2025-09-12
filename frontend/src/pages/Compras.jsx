@@ -1,16 +1,24 @@
-import React, { useEffect, useState } from "react";
+// src/pages/Compras.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
-function Compras() {
-  const { token } = useAuth();
+const fmtMoney = (n) =>
+  n == null || n === "" ? "-" : `$${Number(n).toFixed(2)}`;
+
+export default function Compras() {
+  const { token, empresa, role } = useAuth();
+
   const [compras, setCompras] = useState([]);
-  const [formVisible, setFormVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+
+  const [formVisible, setFormVisible] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({
     fecha: "",
-    tipo: "insumo",
+    tipo: "insumo", // insumo | gasto | capital
     proveedor_id: "",
     descripcion: "",
     unidad: "",
@@ -25,133 +33,187 @@ function Compras() {
     descripcion: "",
   });
 
+  // ===== API =====
   const fetchCompras = async () => {
+    setLoading(true);
+    setError("");
     try {
       const res = await axiosAuth.get("/api/compras");
       setCompras(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Error al obtener compras:", err);
+      console.error("GET /api/compras", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 401
+            ? "Sesión inválida o expirada. Iniciá sesión nuevamente."
+            : status === 403
+            ? "Acceso denegado. Verificá empresa/rol."
+            : err?.code === "ERR_NETWORK"
+            ? "No se pudo conectar con la API (VITE_API_BASE/CORS)."
+            : "No se pudieron cargar las compras.")
+      );
+      setCompras([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token) fetchCompras();
+    if (token && empresa) fetchCompras();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, empresa]);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  // ===== Handlers =====
+  const handleChange = (e) =>
+    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
 
-  const handleFiltroChange = (e) => {
-    setFiltros({ ...filtros, [e.target.name]: e.target.value });
+  const handleFiltroChange = (e) =>
+    setFiltros((s) => ({ ...s, [e.target.name]: e.target.value }));
+
+  const resetForm = () => {
+    setEditId(null);
+    setFormVisible(false);
+    setForm({
+      fecha: "",
+      tipo: "insumo",
+      proveedor_id: "",
+      descripcion: "",
+      unidad: "",
+      cantidad: "",
+      precio_unitario: "",
+    });
   };
 
   const handleSubmit = async () => {
+    setError("");
     try {
-      const data = {
+      const payload = {
         ...form,
         cantidad: parseFloat(form.cantidad),
         precio_unitario: parseFloat(form.precio_unitario),
       };
 
-      if (isNaN(data.cantidad) || isNaN(data.precio_unitario)) {
-        alert("Cantidad y Precio Unitario deben ser numéricos.");
+      if (
+        Number.isNaN(payload.cantidad) ||
+        Number.isNaN(payload.precio_unitario)
+      ) {
+        setError("Cantidad y Precio Unitario deben ser numéricos.");
         return;
       }
 
       if (editId) {
-        await axiosAuth.put(`/api/compras/${editId}`, data);
-        setMensaje("✅ Compra editada con éxito");
+        await axiosAuth.put(`/api/compras/${editId}`, payload);
+        setMensaje("✅ Compra actualizada");
       } else {
-        await axiosAuth.post("/api/compras", data);
-        setMensaje("✅ Compra guardada con éxito");
+        await axiosAuth.post("/api/compras", payload);
+        setMensaje("✅ Compra registrada");
       }
 
-      setFormVisible(false);
-      setEditId(null);
-      setForm({
-        fecha: "",
-        tipo: "insumo",
-        proveedor_id: "",
-        descripcion: "",
-        unidad: "",
-        cantidad: "",
-        precio_unitario: "",
-      });
+      resetForm();
       fetchCompras();
-      setTimeout(() => setMensaje(""), 3000);
-    } catch (error) {
-      console.error("Error al guardar/editar compra:", error);
+      setTimeout(() => setMensaje(""), 2500);
+    } catch (err) {
+      console.error("SAVE /api/compras", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 403
+            ? "Acceso denegado (solo admin / empresa inválida)."
+            : status === 401
+            ? "Sesión inválida o expirada."
+            : "No se pudo guardar la compra.")
+      );
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("¿Eliminar compra?")) {
-      try {
-        await axiosAuth.delete(`/api/compras/${id}`);
-        fetchCompras();
-      } catch (error) {
-        console.error("Error al eliminar compra:", error);
-      }
+    if (!window.confirm("¿Eliminar compra?")) return;
+    setError("");
+    try {
+      await axiosAuth.delete(`/api/compras/${id}`);
+      fetchCompras();
+    } catch (err) {
+      console.error("DELETE /api/compras", err);
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 403
+            ? "Acceso denegado (solo admin / empresa inválida)."
+            : status === 401
+            ? "Sesión inválida o expirada."
+            : "No se pudo eliminar la compra.")
+      );
     }
   };
 
-  const handleEdit = (compra) => {
+  const handleEdit = (c) => {
+    setEditId(c.id);
     setForm({
-      fecha: compra.fecha || "",
-      tipo: compra.tipo || "insumo",
-      proveedor_id: compra.proveedor_id || "",
-      descripcion: compra.descripcion || "",
-      unidad: compra.unidad || "",
-      cantidad: compra.cantidad || "",
-      precio_unitario: compra.precio_unitario || "",
+      fecha: (c.fecha || "").slice(0, 10),
+      tipo: c.tipo || "insumo",
+      proveedor_id: c.proveedor_id ?? "",
+      descripcion: c.descripcion ?? "",
+      unidad: c.unidad ?? "",
+      cantidad: c.cantidad ?? "",
+      precio_unitario: c.precio_unitario ?? "",
     });
-    setEditId(compra.id);
     setFormVisible(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const comprasFiltradas = compras.filter((c) => {
-    return (
-      (!filtros.fecha || c.fecha.includes(filtros.fecha)) &&
-      (!filtros.tipo || c.tipo === filtros.tipo) &&
-      (!filtros.proveedor ||
-        (c.proveedor_id + "")
-          .toLowerCase()
-          .includes(filtros.proveedor.toLowerCase())) &&
-      (!filtros.descripcion ||
-        c.descripcion.toLowerCase().includes(filtros.descripcion.toLowerCase()))
-    );
-  });
+  // ===== Derivados =====
+  const comprasFiltradas = useMemo(() => {
+    return (compras || []).filter((c) => {
+      const fechaStr = (c.fecha || "").slice(0, 10);
+      return (
+        (!filtros.fecha || fechaStr.includes(filtros.fecha)) &&
+        (!filtros.tipo || c.tipo === filtros.tipo) &&
+        (!filtros.proveedor ||
+          String(c.proveedor_id || "")
+            .toLowerCase()
+            .includes(filtros.proveedor.toLowerCase())) &&
+        (!filtros.descripcion ||
+          String(c.descripcion || "")
+            .toLowerCase()
+            .includes(filtros.descripcion.toLowerCase()))
+      );
+    });
+  }, [compras, filtros]);
 
   return (
     <div>
       <h3>🛒 Compras</h3>
 
-      <div className="mb-3">
-        <button
-          className="btn btn-primary"
-          onClick={() => {
-            setFormVisible(!formVisible);
-            setForm({
-              fecha: "",
-              tipo: "insumo",
-              proveedor_id: "",
-              descripcion: "",
-              unidad: "",
-              cantidad: "",
-              precio_unitario: "",
-            });
-            setEditId(null);
-          }}
-        >
-          {formVisible ? "Cancelar" : "➕ Agregar compra"}
-        </button>
-        {mensaje && <div className="alert alert-success mt-2">{mensaje}</div>}
+      <div className="mb-3 d-flex align-items-center gap-2">
+        {role === "admin" && (
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              if (formVisible) resetForm();
+              else setFormVisible(true);
+            }}
+          >
+            {formVisible ? "Cancelar" : "➕ Agregar compra"}
+          </button>
+        )}
+        {mensaje && <span className="text-success">{mensaje}</span>}
       </div>
 
-      {formVisible && (
+      {error && (
+        <div className="alert alert-danger d-flex justify-content-between align-items-center">
+          <span>{error}</span>
+          <button
+            className="btn btn-sm btn-outline-light"
+            onClick={fetchCompras}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {/* Formulario */}
+      {formVisible && role === "admin" && (
         <div className="card p-3 mb-4">
           <div className="row g-2">
             <div className="col-md-2">
@@ -234,7 +296,7 @@ function Compras() {
         </div>
       )}
 
-      {/* FILTROS */}
+      {/* Filtros */}
       <h5>🔎 Filtros</h5>
       <div className="row g-2 mb-3">
         <div className="col">
@@ -279,52 +341,76 @@ function Compras() {
         </div>
       </div>
 
-      {/* TABLA */}
-      <table className="table table-bordered table-striped">
-        <thead className="table-dark">
-          <tr>
-            <th>Fecha</th>
-            <th>Tipo</th>
-            <th>Proveedor</th>
-            <th>Descripción</th>
-            <th>Unidad</th>
-            <th>Cantidad</th>
-            <th>Precio U.</th>
-            <th>Total</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {comprasFiltradas.map((c) => (
-            <tr key={c.id}>
-              <td>{c.fecha}</td>
-              <td>{c.tipo}</td>
-              <td>{c.proveedor_id}</td>
-              <td>{c.descripcion}</td>
-              <td>{c.unidad}</td>
-              <td>{c.cantidad}</td>
-              <td>${c.precio_unitario}</td>
-              <td>${c.total}</td>
-              <td>
-                <button
-                  className="btn btn-warning btn-sm me-2"
-                  onClick={() => handleEdit(c)}
-                >
-                  Editar
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => handleDelete(c.id)}
-                >
-                  Eliminar
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Tabla */}
+      {loading ? (
+        <div className="text-center py-3">Cargando...</div>
+      ) : (
+        <div className="table-responsive">
+          <table className="table table-bordered table-striped">
+            <thead className="table-dark">
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Proveedor</th>
+                <th>Descripción</th>
+                <th>Unidad</th>
+                <th>Cantidad</th>
+                <th>Precio U.</th>
+                <th>Total</th>
+                {role === "admin" && <th>Acciones</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {comprasFiltradas.map((c) => {
+                const total =
+                  c.total != null
+                    ? c.total
+                    : Number(c.cantidad || 0) * Number(c.precio_unitario || 0);
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      {c.fecha ? new Date(c.fecha).toLocaleDateString() : "-"}
+                    </td>
+                    <td>{c.tipo}</td>
+                    <td>{c.proveedor_id}</td>
+                    <td>{c.descripcion}</td>
+                    <td>{c.unidad}</td>
+                    <td>{c.cantidad}</td>
+                    <td>{fmtMoney(c.precio_unitario)}</td>
+                    <td>{fmtMoney(total)}</td>
+                    {role === "admin" && (
+                      <td className="text-nowrap">
+                        <button
+                          className="btn btn-warning btn-sm me-2"
+                          onClick={() => handleEdit(c)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDelete(c.id)}
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {comprasFiltradas.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={role === "admin" ? 9 : 8}
+                    className="text-center"
+                  >
+                    Sin registros
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
-
-export default Compras;

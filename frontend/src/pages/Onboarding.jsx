@@ -1,11 +1,14 @@
 // src/pages/Onboarding.jsx
 import React, { useState } from "react";
 import axios from "axios";
-import { useAuth } from "../context/AuthContext.jsx";
-const API_BASE = import.meta?.env?.VITE_API_BASE || "http://localhost:4000";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+const API_BASE = import.meta?.env?.VITE_API_BASE ?? ""; // <- sin fallback a localhost
 
 export default function Onboarding() {
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState("login"); // "login" | "register"
 
@@ -44,11 +47,23 @@ export default function Onboarding() {
     }
     try {
       setLoadingL(true);
-      await login({ empresa: empresaL, username: usuarioL, password: passL });
-      window.location.href = "/"; // o navigate("/")
+      await login({
+        empresa: empresaL.trim(),
+        username: usuarioL.trim(),
+        password: passL,
+      });
+      navigate("/");
     } catch (err) {
       console.error(err);
-      setMsgL(err?.response?.data?.message || "No se pudo iniciar sesión.");
+      const status = err?.response?.status;
+      setMsgL(
+        err?.response?.data?.message ||
+          (status === 401
+            ? "Credenciales inválidas."
+            : status === 403
+            ? "Acceso denegado para esta empresa."
+            : "No se pudo iniciar sesión.")
+      );
     } finally {
       setLoadingL(false);
     }
@@ -63,8 +78,7 @@ export default function Onboarding() {
     }
     try {
       setLoadingR(true);
-
-      const res = await axios.post(
+      await axios.post(
         `${API_BASE}/api/company/register`,
         {
           empresa: empresaR,
@@ -98,16 +112,17 @@ export default function Onboarding() {
     setMsgF("");
     try {
       setLoadingF(true);
-      await axios.post(`${API_BASE}/api/auth/forgot`, {
-        empresa: empresaF,
-        username: usuarioF,
-      });
+      await axios.post(
+        `${API_BASE}/api/auth/forgot`,
+        { empresa: empresaF, username: usuarioF },
+        { headers: { "x-company": empresaF } }
+      );
       setMsgF(
         "Si los datos son correctos, enviamos un enlace para restablecer la contraseña."
       );
     } catch (err) {
       console.error("forgot", err);
-      // respuesta genérica (el backend también devuelve genérico)
+      // respuesta genérica
       setMsgF(
         "Si los datos son correctos, enviamos un enlace para restablecer la contraseña."
       );

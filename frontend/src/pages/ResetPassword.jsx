@@ -1,9 +1,7 @@
 // src/pages/ResetPassword.jsx
 import React, { useMemo, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useSearchParams, Link } from "react-router-dom";
-
-const API_BASE = import.meta?.env?.VITE_API_BASE || "http://localhost:4000";
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -25,7 +23,7 @@ export default function ResetPassword() {
     if (pass1 !== pass2) return setMsg("Las contraseñas no coinciden.");
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/api/auth/reset`, {
+      await axiosAuth.post("/api/auth/reset", {
         token,
         newPassword: pass1,
       });

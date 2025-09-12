@@ -23,7 +23,7 @@ import capitalRoutes from "./routes/capitalRoutes.js";
 import pedidosRoutes from "./routes/pedidosRoutes.js";
 import reportesRoutes from "./routes/reportesRoutes.js";
 
-// Config multi-tenant (cuentas/usuarios)
+// Config multi-tenant (cuentas + objetivos)
 import configRouter from "./routes/config/index.js";
 
 dotenv.config();
@@ -57,8 +57,7 @@ const ALLOWED_REGEX = process.env.ALLOWED_ORIGINS_REGEX
   : null;
 
 const corsOrigin = (origin, cb) => {
-  // Permite llamadas server-to-server / Postman (sin header Origin)
-  if (!origin) return cb(null, true);
+  if (!origin) return cb(null, true); // server-to-server / Postman
   if (ALLOWED.has(origin)) return cb(null, true);
   if (ALLOWED_REGEX && ALLOWED_REGEX.test(origin)) return cb(null, true);
   return cb(new Error(`Not allowed by CORS: ${origin}`));
@@ -78,7 +77,6 @@ app.use(express.json());
 /**
  * 🔐 Tenant scoping global:
  * Lee empresa desde header x-company o body/query y setea req.tenantSlug.
- * Útil también para /api/auth/forgot y /api/auth/reset.
  */
 app.use(tenantMiddleware);
 
@@ -105,8 +103,14 @@ app.use("/api/capital", capitalRoutes);
 app.use("/api/pedidos", pedidosRoutes);
 app.use("/api/reportes", reportesRoutes);
 
-// Config multi-tenant (usuarios/cuentas)
+// ✅ ÚNICO router para /api/config (cuentas + objetivos)
 app.use("/api/config", configRouter);
+
+// (opcional) manejador de errores
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ message: "Error interno" });
+});
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);

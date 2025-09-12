@@ -1,6 +1,8 @@
-// src/routes/reportesRoutes.js
 import express from "express";
-import { getReportes } from "../controllers/reportesController.js";
+import {
+  getReportes,
+  getResumenDashboard,
+} from "../controllers/reportesController.js";
 import { verifyToken } from "../middlewares/authMiddleware.js";
 import { tenantMiddleware } from "../middlewares/tenantMiddleware.js";
 
@@ -14,6 +16,11 @@ const router = express.Router();
 router.use(verifyToken);
 router.use(tenantMiddleware);
 
+// KPI para el Dashboard
+// GET /api/reportes/resumen
+router.get("/resumen", getResumenDashboard);
+
+// Reporte completo
 // GET /api/reportes?from=YYYY-MM-DD&to=YYYY-MM-DD
 router.get("/", getReportes);
 

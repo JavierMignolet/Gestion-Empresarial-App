@@ -7,5 +7,32 @@
     "cantidad": 2,
     "precio_unitario": 3200,
     "total": 6400
+  },
+  {
+    "id": 1757349659507,
+    "fecha": "2025-09-09T18:14:49.040Z",
+    "cliente_id": "1",
+    "producto_id": "2",
+    "cantidad": 25,
+    "precio_unitario": 4000,
+    "total": 100000
+  },
+  {
+    "id": 1757447876846,
+    "fecha": "2025-09-08T12:00:00.000Z",
+    "cliente_id": "1",
+    "producto_id": "2",
+    "cantidad": 3,
+    "precio_unitario": 5500,
+    "total": 16500
+  },
+  {
+    "id": 1757447912113,
+    "fecha": "2025-09-09T12:00:00.000Z",
+    "cliente_id": 3,
+    "producto_id": "2",
+    "cantidad": 50,
+    "precio_unitario": 4000,
+    "total": 200000
   }
 ]

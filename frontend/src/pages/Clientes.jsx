@@ -4,9 +4,12 @@ import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Clientes() {
-  const { token, empresa, logout } = useAuth();
+  const { token, empresa, role, logout } = useAuth();
+
   const [clientes, setClientes] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
@@ -20,27 +23,29 @@ function Clientes() {
   });
 
   const fetchClientes = async () => {
+    setLoading(true);
+    setError("");
     try {
       const res = await axiosAuth.get("/api/clientes");
       setClientes(Array.isArray(res.data) ? res.data : []);
-      setError("");
     } catch (err) {
       console.error("GET /api/clientes", err);
       const status = err?.response?.status;
       const msg =
         err?.response?.data?.message ||
         (status === 401
-          ? "Sesión inválida. Volvé a iniciar sesión."
+          ? "Sesión inválida o expirada. Iniciá sesión nuevamente."
           : status === 403
-          ? "Acceso denegado. Verificá que la empresa del token coincida."
+          ? "Acceso denegado. Verificá que la empresa del token coincida y tu rol."
+          : err?.code === "ERR_NETWORK"
+          ? "No se pudo conectar con la API. Revisá VITE_API_BASE/CORS."
           : "No se pudieron cargar los clientes.");
       setError(msg);
       setClientes([]);
-      // si el token no sirve, limpiar sesión ayuda a evitar loops
-      if (status === 401 || status === 403) {
-        // opcional: desloguear automáticamente
-        // logout();
-      }
+      // Deslogueo opcional ante 401/403 para evitar loops
+      // if (status === 401 || status === 403) logout();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -69,12 +74,21 @@ function Clientes() {
 
   const openEditar = (cliente) => {
     setEditMode(true);
-    setFormData(cliente);
+    setFormData({
+      id: cliente.id ?? null,
+      nombre: cliente.nombre ?? "",
+      cuit_dni: cliente.cuit_dni ?? "",
+      direccion: cliente.direccion ?? "",
+      telefono: cliente.telefono ?? "",
+      email: cliente.email ?? "",
+      condicion_iva: cliente.condicion_iva ?? "",
+    });
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     try {
       if (editMode) {
         await axiosAuth.put(`/api/clientes/${formData.id}`, formData);
@@ -84,14 +98,15 @@ function Clientes() {
       }
       setShowModal(false);
       fetchClientes();
-      setError("");
     } catch (err) {
       console.error("SAVE cliente", err);
       const status = err?.response?.status;
       setError(
         err?.response?.data?.message ||
           (status === 403
-            ? "Acceso denegado (solo admin / empresa inválida)."
+            ? "Acceso denegado (solo admin o empresa inválida)."
+            : status === 401
+            ? "Sesión inválida o expirada."
             : "Error al guardar el cliente.")
       );
     }
@@ -99,6 +114,7 @@ function Clientes() {
 
   const eliminarCliente = async (id) => {
     if (!window.confirm("¿Seguro que querés eliminar este cliente?")) return;
+    setError("");
     try {
       await axiosAuth.delete(`/api/clientes/${id}`);
       fetchClientes();
@@ -108,7 +124,9 @@ function Clientes() {
       setError(
         err?.response?.data?.message ||
           (status === 403
-            ? "Acceso denegado (solo admin / empresa inválida)."
+            ? "Acceso denegado (solo admin o empresa inválida)."
+            : status === 401
+            ? "Sesión inválida o expirada."
             : "Error al eliminar el cliente.")
       );
     }
@@ -117,16 +135,32 @@ function Clientes() {
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3>Clientes registrados</h3>
-        <button className="btn btn-primary" onClick={openNuevo}>
-          Agregar cliente
-        </button>
+        <h3 className="m-0">Clientes registrados</h3>
+
+        {/* Ocultar acciones de escritura si no es admin */}
+        {role === "admin" && (
+          <button className="btn btn-primary" onClick={openNuevo}>
+            Agregar cliente
+          </button>
+        )}
       </div>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && (
+        <div className="alert alert-danger d-flex justify-content-between align-items-center">
+          <span>{error}</span>
+          <button
+            className="btn btn-sm btn-outline-light"
+            onClick={fetchClientes}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
 
-      {!clientes || clientes.length === 0 ? (
-        <p>No hay clientes cargados aún.</p>
+      {loading ? (
+        <div className="text-center py-4">Cargando...</div>
+      ) : !clientes || clientes.length === 0 ? (
+        <p className="text-center">No hay clientes cargados aún.</p>
       ) : (
         <div className="table-responsive">
           <table className="table table-bordered table-hover">
@@ -139,7 +173,7 @@ function Clientes() {
                 <th>Teléfono</th>
                 <th>Email</th>
                 <th>Cond. IVA</th>
-                <th>Acciones</th>
+                {role === "admin" && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -152,20 +186,22 @@ function Clientes() {
                   <td>{c.telefono}</td>
                   <td>{c.email}</td>
                   <td>{c.condicion_iva}</td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-warning me-2"
-                      onClick={() => openEditar(c)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => eliminarCliente(c.id)}
-                    >
-                      Eliminar
-                    </button>
-                  </td>
+                  {role === "admin" && (
+                    <td className="text-nowrap">
+                      <button
+                        className="btn btn-sm btn-warning me-2"
+                        onClick={() => openEditar(c)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        onClick={() => eliminarCliente(c.id)}
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -206,7 +242,7 @@ function Clientes() {
                       {field.replace("_", " ").toUpperCase()}
                     </label>
                     <input
-                      type="text"
+                      type={field === "email" ? "email" : "text"}
                       name={field}
                       value={formData[field]}
                       onChange={handleChange}

@@ -1,6 +1,10 @@
 // src/utils/axiosAuth.js
 import axios from "axios";
 
+/**
+ * Base de la API: usa VITE_API_BASE en prod (Vercel) y localhost en dev.
+ * En el código de las páginas llamá SIEMPRE rutas relativas: "/api/...".
+ */
 const API_BASE =
   (typeof import.meta !== "undefined" && import.meta?.env?.VITE_API_BASE) ||
   "http://localhost:4000";
@@ -9,30 +13,18 @@ const axiosAuth = axios.create({
   baseURL: API_BASE,
 });
 
-function readSession() {
-  const stores = [localStorage, sessionStorage];
-  const keys = ["session", "auth"]; // primero la actual
-  for (const st of stores) {
-    for (const k of keys) {
-      const raw = st.getItem(k);
-      if (raw) {
-        try {
-          return JSON.parse(raw);
-        } catch {}
-      }
-    }
-  }
-  return null;
-}
-
+// Antes de cada request, agrega token y empresa desde localStorage.session
 axiosAuth.interceptors.request.use((config) => {
-  const s = readSession();
-  // formato guardado por AuthContext: { token, empresa, user: {…} }
-  const token = s?.token || s?.user?.token;
-  const empresa = s?.empresa || s?.user?.empresa;
-
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  if (empresa) config.headers["x-company"] = empresa;
+  try {
+    const raw =
+      localStorage.getItem("session") || sessionStorage.getItem("session");
+    const session = raw ? JSON.parse(raw) : null;
+    if (session?.token)
+      config.headers.Authorization = `Bearer ${session.token}`;
+    if (session?.empresa) config.headers["x-company"] = session.empresa;
+  } catch {
+    /* noop */
+  }
   return config;
 });
 

@@ -1,12 +1,20 @@
-//Productos.jsx
+// src/pages/Productos.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
+
+const fmtMoney = (v) =>
+  `$${Number(v ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 function Productos() {
   const { token } = useAuth();
   const [productos, setProductos] = useState([]);
   const [error, setError] = useState("");
+  const [okMsg, setOkMsg] = useState("");
+
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
@@ -19,28 +27,7 @@ function Productos() {
     precio_mayorista: "",
   });
 
-  const fetchProductos = async () => {
-    try {
-      const res = await axios.get("http://localhost:4000/api/productos", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setProductos(res.data);
-    } catch (err) {
-      setError("No se pudieron cargar los productos");
-    }
-  };
-
-  useEffect(() => {
-    fetchProductos();
-  }, [token]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const openNuevo = () => {
-    setEditMode(false);
+  const resetForm = () =>
     setFormData({
       id: null,
       nombre: "",
@@ -50,48 +37,103 @@ function Productos() {
       precio_minorista: "",
       precio_mayorista: "",
     });
+
+  const fetchProductos = async () => {
+    try {
+      const res = await axiosAuth.get("/api/productos");
+      setProductos(Array.isArray(res.data) ? res.data : []);
+      setError("");
+    } catch (err) {
+      console.error("GET /api/productos", err);
+      setProductos([]);
+      setError(
+        err?.response?.data?.message || "No se pudieron cargar los productos."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (token) fetchProductos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    // mantenemos como string para inputs controlados; convertimos al guardar
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const openNuevo = () => {
+    setEditMode(false);
+    resetForm();
     setShowModal(true);
   };
 
   const openEditar = (producto) => {
     setEditMode(true);
-    setFormData(producto);
+    setFormData({
+      id: producto.id,
+      nombre: producto.nombre || "",
+      tipo: producto.tipo || "",
+      presentacion: producto.presentacion || "",
+      precio_consumidor: producto.precio_consumidor ?? "",
+      precio_minorista: producto.precio_minorista ?? "",
+      precio_mayorista: producto.precio_mayorista ?? "",
+    });
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setOkMsg("");
+
+    const payload = {
+      nombre: formData.nombre,
+      tipo: formData.tipo,
+      presentacion: formData.presentacion,
+      precio_consumidor:
+        formData.precio_consumidor === ""
+          ? ""
+          : parseFloat(formData.precio_consumidor),
+      precio_minorista:
+        formData.precio_minorista === ""
+          ? ""
+          : parseFloat(formData.precio_minorista),
+      precio_mayorista:
+        formData.precio_mayorista === ""
+          ? ""
+          : parseFloat(formData.precio_mayorista),
+    };
+
     try {
       if (editMode) {
-        await axios.put(
-          `http://localhost:4000/api/productos/${formData.id}`,
-          formData,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        await axiosAuth.put(`/api/productos/${formData.id}`, payload);
+        setOkMsg("✅ Producto actualizado.");
       } else {
-        await axios.post(`http://localhost:4000/api/productos`, formData, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axiosAuth.post("/api/productos", payload);
+        setOkMsg("✅ Producto creado.");
       }
       setShowModal(false);
+      resetForm();
       fetchProductos();
+      setTimeout(() => setOkMsg(""), 2200);
     } catch (err) {
-      setError("Error al guardar el producto");
+      console.error("SAVE /api/productos", err);
+      setError(err?.response?.data?.message || "Error al guardar el producto.");
     }
   };
 
   const eliminarProducto = async (id) => {
-    if (window.confirm("¿Seguro que querés eliminar este producto?")) {
-      try {
-        await axios.delete(`http://localhost:4000/api/productos/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        fetchProductos();
-      } catch (err) {
-        setError("Error al eliminar el producto");
-      }
+    if (!window.confirm("¿Seguro que querés eliminar este producto?")) return;
+    try {
+      await axiosAuth.delete(`/api/productos/${id}`);
+      fetchProductos();
+    } catch (err) {
+      console.error("DELETE /api/productos", err);
+      setError(
+        err?.response?.data?.message || "Error al eliminar el producto."
+      );
     }
   };
 
@@ -104,6 +146,7 @@ function Productos() {
         </button>
       </div>
 
+      {okMsg && <div className="alert alert-success">{okMsg}</div>}
       {error && <div className="alert alert-danger">{error}</div>}
 
       {productos.length === 0 ? (
@@ -113,7 +156,7 @@ function Productos() {
           <table className="table table-bordered table-hover">
             <thead className="table-dark">
               <tr>
-                <th>ID</th> {/* <- antes decia # */}
+                <th>ID</th>
                 <th>Nombre</th>
                 <th>Tipo</th>
                 <th>Presentación</th>
@@ -126,14 +169,14 @@ function Productos() {
             <tbody>
               {productos.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.id}</td> {/* <- antes usabas index + 1 */}
+                  <td>{p.id}</td>
                   <td>{p.nombre}</td>
                   <td>{p.tipo}</td>
                   <td>{p.presentacion}</td>
-                  <td>${p.precio_consumidor}</td>
-                  <td>${p.precio_minorista}</td>
-                  <td>${p.precio_mayorista}</td>
-                  <td>
+                  <td>{fmtMoney(p.precio_consumidor)}</td>
+                  <td>{fmtMoney(p.precio_minorista)}</td>
+                  <td>{fmtMoney(p.precio_mayorista)}</td>
+                  <td className="text-nowrap">
                     <button
                       className="btn btn-sm btn-warning me-2"
                       onClick={() => openEditar(p)}
@@ -171,32 +214,35 @@ function Productos() {
                   type="button"
                   className="btn-close"
                   onClick={() => setShowModal(false)}
-                ></button>
+                />
               </div>
+
               <div className="modal-body">
                 {[
-                  "nombre",
-                  "tipo",
-                  "presentacion",
-                  "precio_consumidor",
-                  "precio_minorista",
-                  "precio_mayorista",
-                ].map((field) => (
+                  ["nombre", "text"],
+                  ["tipo", "text"],
+                  ["presentacion", "text"],
+                  ["precio_consumidor", "number"],
+                  ["precio_minorista", "number"],
+                  ["precio_mayorista", "number"],
+                ].map(([field, type]) => (
                   <div className="mb-3" key={field}>
                     <label className="form-label">
                       {field.replace("_", " ").toUpperCase()}
                     </label>
                     <input
-                      type={field.includes("precio") ? "number" : "text"}
+                      type={type}
                       name={field}
                       className="form-control"
                       value={formData[field]}
                       onChange={handleChange}
-                      required
+                      {...(type === "number" ? { step: "0.01", min: "0" } : {})}
+                      required={["nombre"].includes(field)}
                     />
                   </div>
                 ))}
               </div>
+
               <div className="modal-footer">
                 <button
                   type="button"

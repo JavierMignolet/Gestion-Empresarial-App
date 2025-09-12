@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1757424137391,
+    "fecha": "2025-09-09",
+    "producto": "Tequeño",
+    "nombre": "Tequeño",
+    "cantidad": 35,
+    "lote": "1225",
+    "insumos": [
+      {
+        "insumo": "Harina",
+        "unidad": "kg",
+        "cantidad": 25
+      },
+      {
+        "insumo": "Queso",
+        "unidad": "kg",
+        "cantidad": 5
+      }
+    ],
+    "stock": 35
+  },
+  {
+    "id": 1757443088995,
+    "fecha": "2025-09-09",
+    "producto": "Tequeño",
+    "nombre": "Tequeño",
+    "cantidad": 900,
+    "lote": "2525",
+    "insumos": [
+      {
+        "insumo": "Harina",
+        "unidad": "kg",
+        "cantidad": 50
+      },
+      {
+        "insumo": "Queso",
+        "unidad": "kg",
+        "cantidad": 5
+      }
+    ],
+    "stock": 900
+  }
+]

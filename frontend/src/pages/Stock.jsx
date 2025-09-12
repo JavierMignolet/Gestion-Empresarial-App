@@ -1,6 +1,6 @@
 // src/pages/Stock.jsx
 import { useEffect, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Badge({ estado }) {
@@ -39,24 +39,33 @@ export default function Stock() {
   const [insumos, setInsumos] = useState([]);
   const [error, setError] = useState("");
 
-  const headers = { Authorization: `Bearer ${token}` };
-
   const fetchAll = async () => {
     try {
       const [r1, r2] = await Promise.all([
-        axios.get("http://localhost:4000/api/stock/produccion", { headers }),
-        axios.get("http://localhost:4000/api/stock/insumos", { headers }),
+        axiosAuth.get("/api/stock/produccion"),
+        axiosAuth.get("/api/stock/insumos"),
       ]);
       setLotes(r1.data || []);
       setInsumos(r2.data || []);
+      setError("");
     } catch (err) {
       console.error("❌ Error al cargar stock:", err);
-      setError("No se pudo cargar el stock.");
+      const status = err?.response?.status;
+      setError(
+        err?.response?.data?.message ||
+          (status === 401
+            ? "Sesión inválida. Volvé a iniciar sesión."
+            : status === 403
+            ? "Acceso denegado. Verificá que la empresa/tokens coincidan."
+            : "No se pudo cargar el stock.")
+      );
+      setLotes([]);
+      setInsumos([]);
     }
   };
 
   useEffect(() => {
-    fetchAll();
+    if (token) fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 

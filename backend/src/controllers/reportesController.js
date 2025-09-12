@@ -1,14 +1,13 @@
-// src/controllers/reportesController.js
 import { readJSON, writeJSON } from "../utils/fileHandler.js";
 
-/* === Archivos fuente === */
+/* === Archivos fuente (tenant-aware) === */
 const VENTAS_FILE = "/ventas.json";
 const COMPRAS_FILE = "/compras.json";
 const PRODUCCIONES_FILE = "/producciones.json";
 const PEDIDOS_FILE = "/pedidos.json";
-const OBJETIVOS_FILE = "/objetivos_ventas.json"; // { objetivo_mensual_unidades, objetivo_semestral_unidades, objetivo_anual_unidades }
-const FINANZAS_FILE = "/finanzas.json"; // opcional (si lo usás luego)
-const VENTAS_MENSUALES_FILE = "/ventas_mensuales.json"; // [{year, month, unidades}]
+const OBJETIVOS_FILE = "/objetivos_ventas.json"; // principal, tenant-aware
+const FINANZAS_FILE = "/finanzas.json";
+const VENTAS_MENSUALES_FILE = "/ventas_mensuales.json";
 const GASTOS_FILE = "/gastos.json";
 
 /* === Helpers === */
@@ -47,7 +46,6 @@ const cantidadDeVenta = (v) => {
 };
 
 function aggregateMonthlyFromVentas(ventas) {
-  // Devuelve [{year, month, unidades}]
   const map = new Map(); // key = `${y}-${m}`
   for (const v of ventas) {
     const d = toDate(v.fecha || v.createdAt);
@@ -68,7 +66,6 @@ function aggregateMonthlyFromVentas(ventas) {
 }
 
 function ensureVentasMensualesPersistidas(ventas) {
-  // Recalcula completo desde ventas.json y lo guarda en /ventas_mensuales.json
   const mensual = aggregateMonthlyFromVentas(ventas);
   writeJSON(VENTAS_MENSUALES_FILE, mensual);
   return mensual;
@@ -102,7 +99,7 @@ function ventasRealesHorizontes(ventas) {
   };
 }
 
-/* === Insumos/Costos helpers (igual que antes) === */
+/* === Insumos/Costos helpers === */
 function resumenInsumosDesdeCompras(compras) {
   const map = {};
   compras
@@ -285,7 +282,13 @@ function stockProduccionFIFO(producciones, ventas) {
 
 /* === Objetivos (unidades) === */
 function readObjetivos() {
-  const obj = safeReadObj(OBJETIVOS_FILE, null);
+  // Principal (tenant-aware) + fallbacks para compatibilidad
+  const obj =
+    safeReadObj(OBJETIVOS_FILE, null) ??
+    safeReadObj("/config/objetivos.json", null) ??
+    safeReadObj("./src/data/config/objetivos.json", null) ??
+    {};
+
   return {
     objetivo_mensual_unidades: Number(obj?.objetivo_mensual_unidades) || 0,
     objetivo_semestral_unidades: Number(obj?.objetivo_semestral_unidades) || 0,
@@ -295,7 +298,100 @@ function readObjetivos() {
   };
 }
 
-/* === Reporte principal === */
+/* ======================================================
+   ✅ RESUMEN PARA DASHBOARD (GET /api/reportes/resumen)
+   ====================================================== */
+export const getResumenDashboard = (_req, res) => {
+  try {
+    const pedidos = safeRead(PEDIDOS_FILE);
+    const ventas = safeRead(VENTAS_FILE);
+    const producciones = safeRead(PRODUCCIONES_FILE);
+    const compras = safeRead(COMPRAS_FILE);
+
+    // 1) Pedidos pendientes (no entregados/cerrados)
+    const estadosCerrados = ["entregado", "entregado/cobrado", "cerrado"];
+    const pedidosPendientes = pedidos.filter(
+      (p) => !estadosCerrados.includes((p.estado || "").toLowerCase())
+    ).length;
+
+    // 2) Ventas hoy (unidades)
+    const today = new Date();
+    const isSameDay = (d) =>
+      d &&
+      d.getFullYear() === today.getFullYear() &&
+      d.getMonth() === today.getMonth() &&
+      d.getDate() === today.getDate();
+
+    const ventasHoy = ventas
+      .filter((v) => isSameDay(toDate(v.fecha || v.createdAt)))
+      .reduce((acc, v) => acc + cantidadDeVenta(v), 0);
+
+    // 3) Producciones hoy (unidades producidas)
+    const produccionesHoy = producciones
+      .filter((p) => isSameDay(toDate(p.fecha)))
+      .reduce((acc, p) => acc + (Number(p.cantidad) || 0), 0);
+
+    // 4) Stock bajo (insumos en alerta: rojos + amarillos)
+    const resumenCompras = resumenInsumosDesdeCompras(compras);
+    const consumoQ = consumoPromedioQuincenal(producciones);
+    const saldos = saldoInsumos(
+      resumenCompras,
+      consumoInsumosDesdeProducciones(producciones)
+    );
+    const { rojos, amarillos } = alertasInsumos(saldos, consumoQ);
+    const stockBajo = (rojos?.length || 0) + (amarillos?.length || 0);
+
+    // 5) Últimos pedidos (expandido por producto)
+    const explodePedido = (p) => {
+      const baseDate = p.fecha || p.fecha_pedido || p.createdAt || null;
+      const clienteNombre =
+        p.cliente?.nombre || p.cliente || p.cliente_id || "-";
+      const estado = p.estado || "pendiente";
+      if (Array.isArray(p.productos) && p.productos.length) {
+        return p.productos.map((it, idx) => ({
+          id: String(p.id ?? `${baseDate}-${clienteNombre}-${idx}`),
+          fecha_pedido: baseDate,
+          cliente_nombre: clienteNombre,
+          producto_nombre: it.nombre || it.producto || it.producto_id || "-",
+          cantidad: Number(it.cantidad) || 0,
+          estado,
+        }));
+      }
+      return [
+        {
+          id: String(p.id ?? `${baseDate}-${clienteNombre}`),
+          fecha_pedido: baseDate,
+          cliente_nombre: clienteNombre,
+          producto_nombre: p.producto || p.producto_id || "-",
+          cantidad: Number(p.cantidad) || 0,
+          estado,
+        },
+      ];
+    };
+
+    const ultimosPedidos = pedidos
+      .flatMap(explodePedido)
+      .sort(
+        (a, b) => new Date(b.fecha_pedido || 0) - new Date(a.fecha_pedido || 0)
+      )
+      .slice(0, 8);
+
+    res.json({
+      pedidosPendientes,
+      ventasHoy,
+      produccionesHoy,
+      stockBajo,
+      ultimosPedidos,
+    });
+  } catch (err) {
+    console.error("❌ Error en getResumenDashboard:", err);
+    res.status(500).json({ message: "No se pudo generar el resumen" });
+  }
+};
+
+/* ==========================================
+   📊 Reporte principal (GET /api/reportes)
+   ========================================== */
 export const getReportes = (req, res) => {
   try {
     const { from: qsFrom, to: qsTo } = req.query;
@@ -308,13 +404,9 @@ export const getReportes = (req, res) => {
     const pedidosAll = safeRead(PEDIDOS_FILE);
     const gastosAll = safeRead(GASTOS_FILE);
 
-    /* --- Persistimos/actualizamos historial mensual (AUTO) --- */
-    const ventasMensuales = ensureVentasMensualesPersistidas(ventas); // [{year, month, unidades}]
-
-    /* --- Reales actuales (mes/semestre/año) --- */
+    const ventasMensuales = ensureVentasMensualesPersistidas(ventas);
     const vr = ventasRealesHorizontes(ventas);
 
-    /* --- Filtrar por rango (para otros cálculos) --- */
     const produccionesRango = produccionesAll.filter((p) =>
       inRange(p.fecha, from, to)
     );
@@ -324,7 +416,6 @@ export const getReportes = (req, res) => {
     );
     const gastosRango = gastosAll.filter((g) => inRange(g.fecha, from, to));
 
-    /* --- Productivos --- */
     const resumenCompras = resumenInsumosDesdeCompras(
       comprasRango.length ? comprasRango : compras
     );
@@ -335,7 +426,6 @@ export const getReportes = (req, res) => {
     );
     const { rojos, amarillos } = alertasInsumos(saldos, consumoQ);
 
-    // Pedidos pendientes
     const pedidosPendientes = [];
     (pedidosAll || []).forEach((p) => {
       if (
@@ -398,7 +488,6 @@ export const getReportes = (req, res) => {
     /* --- Económicos (CANTIDADES) --- */
     const objetivos = readObjetivos();
 
-    // Costos
     const costosProd = (function () {
       const precioInsumo = {};
       const ri = resumenCompras;
@@ -430,13 +519,11 @@ export const getReportes = (req, res) => {
     })();
     const costosFijos = sum(gastosRango.map((g) => Number(g.monto) || 0));
 
-    /* --- Placeholders --- */
     const margenBrutoPct = null;
     const margenNetoPct = null;
     const puntoEquilibrioUnidades = null;
     const coberturaCFPct = null;
 
-    /* === RESPUESTA === */
     res.json({
       rango: { from: qsFrom || null, to: qsTo || null },
       productivos: {
@@ -451,22 +538,17 @@ export const getReportes = (req, res) => {
         },
       },
       economicos: {
-        // OBJETIVOS
         objetivos,
-        // REALES: mensual / semestral (ult. 6 meses) / anual (año en curso)
         ventas_real: {
           mensual: vr.mensual,
           semestral: vr.semestral,
           anual: vr.anual,
         },
-        // Comparativo mensual visible
         comparativo_mensual: {
           real: vr.mensual,
           objetivo: objetivos.objetivo_mensual_unidades || 0,
         },
-        // Historial mensual (persistido automáticamente)
-        ventas_historial_mensual: ventasMensuales, // [{year, month, unidades}]
-        // Otros
+        ventas_historial_mensual: ventasMensuales,
         ventas_cant_totales: vr.total,
         costo_fijo_total_rango: Number(costosFijos.toFixed(2)),
         costo_variable_unitario: Number(
@@ -478,7 +560,6 @@ export const getReportes = (req, res) => {
         cobertura_costos_fijos_pct: coberturaCFPct,
       },
       financieros: {
-        // Placeholders (si después usás FINANZAS_FILE)
         liquidez_corriente: null,
         capital_trabajo: null,
         endeudamiento_total: null,

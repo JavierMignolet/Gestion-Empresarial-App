@@ -1,3 +1,4 @@
+// src/pages/Capital.jsx
 import { useEffect, useMemo, useState } from "react";
 import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
@@ -70,20 +71,43 @@ export default function Capital() {
 
   // ====== LOADERS ======
   const loadInversion = async () => {
-    const { data } = await axiosAuth.get("/api/capital/inversion");
-    setInvData(data || []);
+    try {
+      const { data } = await axiosAuth.get("/api/capital/inversion");
+      setInvData(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setInvData([]);
+    }
   };
   const loadFijos = async () => {
-    const { data } = await axiosAuth.get("/api/capital/costos-fijos");
-    setFixData(data || []);
+    try {
+      const { data } = await axiosAuth.get("/api/capital/costos-fijos");
+      setFixData(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setFixData([]);
+    }
   };
   const loadGastos = async () => {
-    const { data } = await axiosAuth.get("/api/capital/gastos");
-    setGData(data || []);
+    try {
+      const { data } = await axiosAuth.get("/api/capital/gastos");
+      setGData(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setGData([]);
+    }
   };
   const loadCVU = async () => {
-    const { data } = await axiosAuth.get("/api/capital/cvu");
-    setCvu(data || { detalle: [], total: 0 });
+    try {
+      const { data } = await axiosAuth.get("/api/capital/cvu");
+      setCvu(
+        data && typeof data === "object"
+          ? {
+              detalle: Array.isArray(data.detalle) ? data.detalle : [],
+              total: Number(data.total || 0),
+            }
+          : { detalle: [], total: 0 }
+      );
+    } catch (e) {
+      setCvu({ detalle: [], total: 0 });
+    }
   };
 
   useEffect(() => {

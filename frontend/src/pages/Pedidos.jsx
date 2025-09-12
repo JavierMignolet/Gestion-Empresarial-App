@@ -1,11 +1,10 @@
 // src/pages/Pedidos.jsx
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import axiosAuth from "../utils/axiosAuth";
 import { useAuth } from "../context/AuthContext";
 
 function Pedidos() {
   const { token, role } = useAuth();
-  const headers = { Authorization: `Bearer ${token}` };
 
   const [pedidos, setPedidos] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -13,6 +12,8 @@ function Pedidos() {
 
   const [formVisible, setFormVisible] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [error, setError] = useState("");
+  const [okMsg, setOkMsg] = useState("");
 
   // Modal Nuevo Cliente
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
@@ -47,30 +48,42 @@ function Pedidos() {
 
   // ===== fetch =====
   const fetchPedidos = async () => {
-    const res = await axios.get("http://localhost:4000/api/pedidos", {
-      headers,
-    });
-    setPedidos(res.data || []);
+    try {
+      const res = await axiosAuth.get("/api/pedidos");
+      setPedidos(Array.isArray(res.data) ? res.data : []);
+      setError("");
+    } catch (err) {
+      console.error("GET /api/pedidos", err);
+      setError(
+        err?.response?.data?.message || "No se pudieron cargar los pedidos."
+      );
+      setPedidos([]);
+    }
   };
   const fetchClientes = async () => {
-    const res = await axios.get("http://localhost:4000/api/clientes", {
-      headers,
-    });
-    setClientes(res.data || []);
+    try {
+      const res = await axiosAuth.get("/api/clientes");
+      setClientes(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("GET /api/clientes", err);
+    }
   };
   const fetchProductos = async () => {
-    const res = await axios.get("http://localhost:4000/api/productos", {
-      headers,
-    });
-    setProductos(res.data || []);
+    try {
+      const res = await axiosAuth.get("/api/productos");
+      setProductos(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("GET /api/productos", err);
+    }
   };
 
   useEffect(() => {
+    if (!token) return;
     fetchPedidos();
     fetchClientes();
     fetchProductos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   // ===== maps =====
   const clientesById = useMemo(() => {
@@ -119,7 +132,7 @@ function Pedidos() {
     }));
   };
 
-  // ===== precio desde producto por modo =====
+  // ===== precios =====
   const pickPriceFromProduct = (prod, mode, diferenciado) => {
     if (!prod) return "";
     if (mode === "mayorista") return prod.precio_mayorista ?? "";
@@ -196,28 +209,25 @@ function Pedidos() {
   // ===== submit =====
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     try {
       const payload = {
         cliente_id: form.cliente_id || null,
         cliente_nombre: form.cliente_nombre || null,
         producto_id: form.producto_id,
         producto_nombre: form.producto_nombre,
-        cantidad: form.cantidad,
-        precio_unitario: form.precio_unitario,
+        cantidad: Number(form.cantidad),
+        precio_unitario: Number(form.precio_unitario),
         fecha_estimada_entrega: form.fecha_estimada_entrega || null,
         metodo_pago: form.metodo_pago, // contado | contra_entrega | cuenta_corriente
       };
 
       if (editId) {
-        await axios.put(
-          `http://localhost:4000/api/pedidos/${editId}`,
-          payload,
-          { headers }
-        );
+        await axiosAuth.put(`/api/pedidos/${editId}`, payload);
+        setOkMsg("✅ Pedido actualizado");
       } else {
-        await axios.post("http://localhost:4000/api/pedidos", payload, {
-          headers,
-        });
+        await axiosAuth.post("/api/pedidos", payload);
+        setOkMsg("✅ Pedido creado");
       }
 
       setFormVisible(false);
@@ -235,24 +245,23 @@ function Pedidos() {
         metodo_pago: "contado",
       });
       fetchPedidos();
+      setTimeout(() => setOkMsg(""), 2200);
     } catch (err) {
       console.error("❌ Error al guardar pedido:", err);
-      alert("No se pudo guardar el pedido.");
+      setError(err?.response?.data?.message || "No se pudo guardar el pedido.");
     }
   };
 
   // ===== estado =====
   const actualizarEstado = async (pedido, nuevoEstado) => {
     try {
-      await axios.put(
-        `http://localhost:4000/api/pedidos/${pedido.id}`,
-        { estado: nuevoEstado },
-        { headers }
-      );
+      await axiosAuth.put(`/api/pedidos/${pedido.id}`, { estado: nuevoEstado });
       fetchPedidos();
     } catch (err) {
       console.error("❌ Error al actualizar estado:", err);
-      alert("No se pudo actualizar el estado del pedido.");
+      setError(
+        err?.response?.data?.message || "No se pudo actualizar el estado."
+      );
     }
   };
 
@@ -302,24 +311,20 @@ function Pedidos() {
   const onDelete = async (id) => {
     if (!window.confirm("¿Eliminar pedido?")) return;
     try {
-      await axios.delete(`http://localhost:4000/api/pedidos/${id}`, {
-        headers,
-      });
+      await axiosAuth.delete(`/api/pedidos/${id}`);
       fetchPedidos();
     } catch (err) {
       console.error("❌ Error al eliminar pedido:", err);
-      alert("No se pudo eliminar el pedido.");
+      setError(
+        err?.response?.data?.message || "No se pudo eliminar el pedido."
+      );
     }
   };
 
   // ===== nuevo cliente =====
   const guardarNuevoCliente = async () => {
     try {
-      const res = await axios.post(
-        "http://localhost:4000/api/clientes",
-        nuevoCliente,
-        { headers }
-      );
+      const res = await axiosAuth.post("/api/clientes", nuevoCliente);
       const c = res.data;
       await fetchClientes();
       setShowNuevoCliente(false);
@@ -332,19 +337,23 @@ function Pedidos() {
         condicion_iva: "",
       });
       // setearlo en el form actual
-      setForm((prev) => ({
-        ...prev,
-        cliente_id: c.id,
-        cliente_nombre: c.nombre,
-      }));
+      if (c?.id) {
+        setForm((prev) => ({
+          ...prev,
+          cliente_id: c.id,
+          cliente_nombre: c.nombre,
+        }));
+      }
+      setOkMsg("✅ Cliente creado");
+      setTimeout(() => setOkMsg(""), 2000);
     } catch (err) {
       console.error("❌ Error al crear cliente:", err);
-      alert("No se pudo crear el cliente.");
+      setError(err?.response?.data?.message || "No se pudo crear el cliente.");
     }
   };
 
   const pedidosFiltrados = useMemo(() => {
-    if (filtroEstado === "todos") return pedidos;
+    if (filtroEstado === "todos") return pedidos || [];
     return (pedidos || []).filter((p) => p.estado === filtroEstado);
   }, [pedidos, filtroEstado]);
 
@@ -352,14 +361,15 @@ function Pedidos() {
     <div>
       <h3>📦 Gestión de Pedidos</h3>
 
+      {error && <div className="alert alert-danger">{error}</div>}
+      {okMsg && <div className="alert alert-success">{okMsg}</div>}
+
       <div className="mb-3 d-flex gap-2 align-items-end">
         <button
           className="btn btn-primary"
           onClick={() => {
             setFormVisible((s) => !s);
-            if (!formVisible) {
-              setEditId(null);
-            }
+            if (!formVisible) setEditId(null);
           }}
         >
           {formVisible ? "Cancelar" : "➕ Agregar pedido"}
@@ -697,14 +707,14 @@ function Pedidos() {
             </tr>
           </thead>
           <tbody>
-            {pedidosFiltrados.map((p) => (
+            {(pedidosFiltrados || []).map((p) => (
               <tr key={p.id}>
                 <td>{displayDate(p.fecha_pedido)}</td>
                 <td>{p.cliente_nombre || p.cliente || "-"}</td>
                 <td>{p.producto_nombre}</td>
                 <td>{p.cantidad}</td>
-                <td>{Number(p.precio_unitario ?? 0)}</td>
-                <td>{Number(p.precio_total ?? 0)}</td>
+                <td>${Number(p.precio_unitario ?? 0).toLocaleString()}</td>
+                <td>${Number(p.precio_total ?? 0).toLocaleString()}</td>
                 <td>{p.metodo_pago}</td>
                 <td>
                   {role === "admin" ? (

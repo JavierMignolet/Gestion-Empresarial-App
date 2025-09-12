@@ -1,36 +1,54 @@
-// src/routes/configRoutes.js
-import express from "express";
-import { verifyToken, isAdmin } from "../middlewares/authMiddleware.js";
-import { tenantMiddleware } from "../middlewares/tenantMiddleware.js";
-import {
-  // Objetivos
-  getObjetivos,
-  updateObjetivos,
-  deleteObjetivo,
-} from "../controllers/configController.js";
+// routes/config/index.js
+import { Router } from "express";
+import { auth as ensureAuth } from "../../middleware/authMiddleware.js"; // <-- ajusta la ruta a tu middleware real
+import db from "../../db.js"; // <-- ajusta a tu capa de datos real (o usa tus helpers)
 
-const router = express.Router();
+const router = Router();
 
-/**
- * Orden recomendado (multi-tenant):
- * 1) verifyToken       -> autentica y expone req.user (incluye empresa del token)
- * 2) isAdmin           -> sólo admins pueden editar configuración
- * 3) tenantMiddleware  -> resuelve req.tenantSlug (desde header o req.user.empresa)
- */
-router.use(verifyToken);
-router.use(isAdmin);
-router.use(tenantMiddleware);
+/* 
+  ... aquí van tus rutas existentes de "cuentas" / "usuarios", 
+  ej.: router.get("/cuentas", auth, ...), router.post("/cuentas", auth, ...), etc.
+*/
 
-// ---- Objetivos ----
-router.get("/objetivos", getObjetivos);
-router.put("/objetivos", updateObjetivos);
-router.delete("/objetivos/:tipo", deleteObjetivo); // tipo: mensual|semestral|anual
+// ======= OBJETIVOS DE VENTAS =======
+router.get("/objetivos", auth, async (req, res, next) => {
+  try {
+    // según tu multi-tenant: preferí req.tenantSlug si lo seteás en tenantMiddleware
+    const empresa = req.tenantSlug || req.user?.empresa;
 
-/**
- * IMPORTANTE:
- * Las rutas de "cuentas" se movieron a:
- *   /api/config/cuentas  (ver src/routes/config/cuentasRoutes.js)
- * Evitamos duplicarlas aquí para no generar conflictos.
- */
+    // Reemplaza por tu acceso a DB real:
+    // Debe retornar { objetivo_mensual_unidades, objetivo_semestral_unidades, objetivo_anual_unidades } o null
+    const row = await db.getObjetivos?.(empresa);
+
+    res.json({
+      objetivo_mensual_unidades: row?.objetivo_mensual_unidades ?? 0,
+      objetivo_semestral_unidades: row?.objetivo_semestral_unidades ?? 0,
+      objetivo_anual_unidades: row?.objetivo_anual_unidades ?? 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put("/objetivos", auth, async (req, res, next) => {
+  try {
+    const empresa = req.tenantSlug || req.user?.empresa;
+
+    const m = Number(req.body.objetivo_mensual_unidades) || 0;
+    const s = Number(req.body.objetivo_semestral_unidades) || 0;
+    const a = Number(req.body.objetivo_anual_unidades) || 0;
+
+    // Reemplaza por tu acceso a DB real (upsert por empresa):
+    await db.upsertObjetivos?.(empresa, {
+      objetivo_mensual_unidades: m,
+      objetivo_semestral_unidades: s,
+      objetivo_anual_unidades: a,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;
